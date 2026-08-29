@@ -1,0 +1,11 @@
+.env
+*.exe
+*.test
+coverage.out
+.DS_Store
+tmp/
+vendor/
+.gocache/
+.gomodcache/
+docs/
+details/
