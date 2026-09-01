@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,13 +22,16 @@ import (
 
 func main() {
 	cfg := config.Load()
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	pool, err := database.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("connect database: %v", err)
+		logger.Error("database connection failed", "error", err)
+		os.Exit(1)
 	}
 	defer pool.Close()
 
@@ -61,9 +64,10 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("payment service listening on %s", cfg.HTTPAddr)
+		logger.Info("payment service listening", "addr", cfg.HTTPAddr)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("http server: %v", err)
+			logger.Error("http server failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -73,6 +77,6 @@ func main() {
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("graceful shutdown failed: %v", err)
+		logger.Error("graceful shutdown failed", "error", err)
 	}
 }

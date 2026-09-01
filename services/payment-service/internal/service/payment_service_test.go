@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/model"
+	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/repository"
 )
 
 type fakePaymentRepository struct {
@@ -27,6 +29,18 @@ func (r fakePaymentRepository) Create(ctx context.Context, payment model.Payment
 	payment.CreatedAt = time.Now().UTC()
 	payment.UpdatedAt = payment.CreatedAt
 	return payment, r.created, nil
+}
+
+func (r fakePaymentRepository) GetByID(ctx context.Context, id string) (model.Payment, error) {
+	if r.err != nil {
+		return model.Payment{}, r.err
+	}
+
+	if r.payment.ID == "" {
+		return model.Payment{}, repository.ErrPaymentNotFound
+	}
+
+	return r.payment, nil
 }
 
 func TestPaymentServiceCreateValidPayment(t *testing.T) {
@@ -93,5 +107,44 @@ func TestPaymentServiceCreateReturnsExistingIdempotentPayment(t *testing.T) {
 	}
 	if result.Payment.ID != existing.ID {
 		t.Fatalf("Payment.ID = %q, want existing payment", result.Payment.ID)
+	}
+}
+
+func TestPaymentServiceGetByIDReturnsPayment(t *testing.T) {
+	expected := model.Payment{
+		ID:          "5de6b73e-1c90-4597-84a8-2d4bf34be7f8",
+		AmountCents: 1299,
+		Currency:    "USD",
+		Status:      model.PaymentStatusPending,
+	}
+	svc := NewPaymentService(fakePaymentRepository{payment: expected})
+
+	payment, err := svc.GetByID(context.Background(), " 5de6b73e-1c90-4597-84a8-2d4bf34be7f8 ")
+	if err != nil {
+		t.Fatalf("GetByID() error = %v", err)
+	}
+
+	if payment.ID != expected.ID {
+		t.Fatalf("Payment.ID = %q, want %q", payment.ID, expected.ID)
+	}
+}
+
+func TestPaymentServiceGetByIDRejectsInvalidID(t *testing.T) {
+	svc := NewPaymentService(fakePaymentRepository{})
+
+	_, err := svc.GetByID(context.Background(), "not-a-uuid")
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("GetByID() error = %v, want ErrValidation", err)
+	}
+}
+
+func TestPaymentServiceGetByIDReturnsNotFound(t *testing.T) {
+	svc := NewPaymentService(fakePaymentRepository{
+		err: fmt.Errorf("wrapped: %w", repository.ErrPaymentNotFound),
+	})
+
+	_, err := svc.GetByID(context.Background(), "5de6b73e-1c90-4597-84a8-2d4bf34be7f8")
+	if !errors.Is(err, ErrPaymentNotFound) {
+		t.Fatalf("GetByID() error = %v, want ErrPaymentNotFound", err)
 	}
 }

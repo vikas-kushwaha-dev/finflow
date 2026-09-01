@@ -7,5 +7,6 @@ tmp/
 vendor/
 .gocache/
 .gomodcache/
+.gotmp/
 docs/
 details/

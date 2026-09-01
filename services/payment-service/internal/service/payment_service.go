@@ -13,6 +13,7 @@ import (
 )
 
 var ErrValidation = errors.New("validation failed")
+var ErrPaymentNotFound = repository.ErrPaymentNotFound
 
 type PaymentService struct {
 	repository repository.PaymentRepository
@@ -56,6 +57,23 @@ func (s *PaymentService) Create(ctx context.Context, request model.CreatePayment
 		Payment: createdPayment,
 		Created: created,
 	}, nil
+}
+
+func (s *PaymentService) GetByID(ctx context.Context, id string) (model.Payment, error) {
+	id = strings.TrimSpace(id)
+	if _, err := uuid.Parse(id); err != nil {
+		return model.Payment{}, ErrValidation
+	}
+
+	payment, err := s.repository.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, repository.ErrPaymentNotFound) {
+			return model.Payment{}, ErrPaymentNotFound
+		}
+		return model.Payment{}, err
+	}
+
+	return payment, nil
 }
 
 func validateCreatePayment(request model.CreatePaymentRequest, idempotencyKey string) error {

@@ -14,6 +14,7 @@ import (
 
 type paymentCreator interface {
 	Create(ctx context.Context, request model.CreatePaymentRequest, idempotencyKey string) (service.CreatePaymentResult, error)
+	GetByID(ctx context.Context, id string) (model.Payment, error)
 }
 
 type PaymentHandler struct {
@@ -26,6 +27,7 @@ func NewPaymentHandler(service paymentCreator) *PaymentHandler {
 
 func (h *PaymentHandler) RegisterRoutes(router chi.Router) {
 	router.Post("/payments", h.createPayment)
+	router.Get("/payments/{id}", h.getPayment)
 }
 
 func (h *PaymentHandler) createPayment(w http.ResponseWriter, r *http.Request) {
@@ -34,18 +36,18 @@ func (h *PaymentHandler) createPayment(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&request); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON request body")
+		writeRequestError(w, r, http.StatusBadRequest, "invalid JSON request body")
 		return
 	}
 
 	result, err := h.service.Create(r.Context(), request, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		if errors.Is(err, service.ErrValidation) {
-			writeError(w, http.StatusBadRequest, "invalid payment request")
+			writeRequestError(w, r, http.StatusBadRequest, "invalid payment request")
 			return
 		}
 
-		writeError(w, http.StatusInternalServerError, "could not create payment")
+		writeRequestError(w, r, http.StatusInternalServerError, "could not create payment")
 		return
 	}
 
@@ -55,4 +57,24 @@ func (h *PaymentHandler) createPayment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	WriteJSON(w, status, result.Payment)
+}
+
+func (h *PaymentHandler) getPayment(w http.ResponseWriter, r *http.Request) {
+	payment, err := h.service.GetByID(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		if errors.Is(err, service.ErrValidation) {
+			writeRequestError(w, r, http.StatusBadRequest, "invalid payment id")
+			return
+		}
+
+		if errors.Is(err, service.ErrPaymentNotFound) {
+			writeRequestError(w, r, http.StatusNotFound, "payment not found")
+			return
+		}
+
+		writeRequestError(w, r, http.StatusInternalServerError, "could not get payment")
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, payment)
 }

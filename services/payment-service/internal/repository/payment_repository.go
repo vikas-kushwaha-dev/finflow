@@ -15,6 +15,7 @@ var ErrPaymentNotFound = errors.New("payment not found")
 
 type PaymentRepository interface {
 	Create(ctx context.Context, payment model.Payment) (model.Payment, bool, error)
+	GetByID(ctx context.Context, id string) (model.Payment, error)
 }
 
 type PostgresPaymentRepository struct {
@@ -68,6 +69,20 @@ LIMIT 1`
 	}
 
 	return createdPayment, created, nil
+}
+
+func (r *PostgresPaymentRepository) GetByID(ctx context.Context, id string) (model.Payment, error) {
+	const query = `
+SELECT id, amount_cents, currency, status, description, external_reference, idempotency_key, created_at, updated_at
+FROM payments
+WHERE id = $1`
+
+	payment, err := scanPayment(r.pool.QueryRow(ctx, query, id), nil)
+	if err != nil {
+		return model.Payment{}, fmt.Errorf("get payment by id: %w", err)
+	}
+
+	return payment, nil
 }
 
 func (r *PostgresPaymentRepository) insert(ctx context.Context, payment model.Payment) (model.Payment, bool, error) {

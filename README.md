@@ -14,8 +14,11 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - Repository, service, handler, model, config, and database packages
 - `GET /health`
 - `POST /api/v1/payments`
+- `GET /api/v1/payments/{id}`
 - request validation
 - optional idempotency support through the `Idempotency-Key` header
+- JSON error responses with request IDs
+- structured server logs
 - unit tests for service and handler behavior
 
 ## Requirements
@@ -50,6 +53,12 @@ curl -X POST http://localhost:8080/api/v1/payments \
 ```
 
 Send the same request with the same `Idempotency-Key` to receive the original payment instead of creating a duplicate.
+
+Retrieve a payment:
+
+```bash
+curl http://localhost:8080/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8
+```
 
 ## Test
 
@@ -98,13 +107,23 @@ Success response:
 }
 ```
 
+### `GET /api/v1/payments/{id}`
+
+Returns one payment by UUID.
+
+Missing payments return:
+
+```json
+{
+  "error": "payment not found",
+  "request_id": "example-request-id"
+}
+```
+
 ## Next milestone
 
-Milestone 2 should add payment retrieval and operational quality:
+Milestone 3 should add migration and database testing quality:
 
-- `GET /api/v1/payments/{id}`
-- structured logging
 - database migration runner instead of only Docker init scripts
 - integration tests against PostgreSQL
 - basic observability and error response consistency
-
