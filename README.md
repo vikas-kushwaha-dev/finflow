@@ -10,7 +10,7 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - Chi HTTP router
 - PostgreSQL connection via `pgxpool`
 - Docker Compose PostgreSQL setup
-- SQL migration for the `payments` table
+- SQL migration runner for the `payments` table
 - Repository, service, handler, model, config, and database packages
 - `GET /health`
 - `POST /api/v1/payments`
@@ -19,6 +19,7 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - optional idempotency support through the `Idempotency-Key` header
 - JSON error responses with request IDs
 - structured server logs
+- PostgreSQL integration test entry point
 - unit tests for service and handler behavior
 
 ## Requirements
@@ -34,6 +35,7 @@ From the project root:
 copy .env.example .env
 docker compose up -d
 cd services/payment-service
+go run ./cmd/migrate
 go run ./cmd/api
 ```
 
@@ -66,6 +68,13 @@ From `services/payment-service`:
 
 ```bash
 go test ./...
+```
+
+Run PostgreSQL integration tests after starting Docker Compose:
+
+```bash
+$env:INTEGRATION_DATABASE_URL="postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable"
+go test ./internal/repository
 ```
 
 ## API
@@ -122,8 +131,9 @@ Missing payments return:
 
 ## Next milestone
 
-Milestone 3 should add migration and database testing quality:
+Milestone 4 should add payment status lifecycle:
 
-- database migration runner instead of only Docker init scripts
-- integration tests against PostgreSQL
-- basic observability and error response consistency
+- `PATCH /api/v1/payments/{id}/status`
+- valid payment status transition rules
+- `updated_at` handling on status changes
+- service and handler tests for status behavior

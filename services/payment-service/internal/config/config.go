@@ -8,9 +8,10 @@ import (
 )
 
 type Config struct {
-	AppEnv      string
-	HTTPAddr    string
-	DatabaseURL string
+	AppEnv        string
+	HTTPAddr      string
+	DatabaseURL   string
+	MigrationsDir string
 }
 
 func Load() Config {
@@ -19,9 +20,10 @@ func Load() Config {
 	}
 
 	return Config{
-		AppEnv:      getEnv("APP_ENV", "local"),
-		HTTPAddr:    getEnv("HTTP_ADDR", ":8080"),
-		DatabaseURL: getEnv("DATABASE_URL", "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable"),
+		AppEnv:        getEnv("APP_ENV", "local"),
+		HTTPAddr:      getEnv("HTTP_ADDR", ":8080"),
+		DatabaseURL:   getEnv("DATABASE_URL", "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable"),
+		MigrationsDir: getEnv("MIGRATIONS_DIR", "../../migrations"),
 	}
 }
 
