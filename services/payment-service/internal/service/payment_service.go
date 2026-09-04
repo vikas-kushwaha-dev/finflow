@@ -13,6 +13,7 @@ import (
 )
 
 var ErrValidation = errors.New("validation failed")
+var ErrInvalidStatusTransition = errors.New("invalid payment status transition")
 var ErrPaymentNotFound = repository.ErrPaymentNotFound
 
 type PaymentService struct {
@@ -76,6 +77,44 @@ func (s *PaymentService) GetByID(ctx context.Context, id string) (model.Payment,
 	return payment, nil
 }
 
+func (s *PaymentService) UpdateStatus(ctx context.Context, id string, request model.UpdatePaymentStatusRequest) (model.Payment, error) {
+	id = strings.TrimSpace(id)
+	if _, err := uuid.Parse(id); err != nil {
+		return model.Payment{}, ErrValidation
+	}
+
+	status := model.PaymentStatus(strings.ToLower(strings.TrimSpace(string(request.Status))))
+	if !isKnownStatus(status) {
+		return model.Payment{}, ErrValidation
+	}
+
+	current, err := s.repository.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, repository.ErrPaymentNotFound) {
+			return model.Payment{}, ErrPaymentNotFound
+		}
+		return model.Payment{}, err
+	}
+
+	if current.Status == status {
+		return current, nil
+	}
+
+	if !canTransition(current.Status, status) {
+		return model.Payment{}, ErrInvalidStatusTransition
+	}
+
+	updated, err := s.repository.UpdateStatus(ctx, id, status)
+	if err != nil {
+		if errors.Is(err, repository.ErrPaymentNotFound) {
+			return model.Payment{}, ErrPaymentNotFound
+		}
+		return model.Payment{}, err
+	}
+
+	return updated, nil
+}
+
 func validateCreatePayment(request model.CreatePaymentRequest, idempotencyKey string) error {
 	if request.AmountCents <= 0 {
 		return ErrValidation
@@ -104,4 +143,18 @@ func validateCreatePayment(request model.CreatePaymentRequest, idempotencyKey st
 	}
 
 	return nil
+}
+
+func isKnownStatus(status model.PaymentStatus) bool {
+	switch status {
+	case model.PaymentStatusPending, model.PaymentStatusSucceeded, model.PaymentStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+func canTransition(from, to model.PaymentStatus) bool {
+	return from == model.PaymentStatusPending &&
+		(to == model.PaymentStatusSucceeded || to == model.PaymentStatusFailed)
 }

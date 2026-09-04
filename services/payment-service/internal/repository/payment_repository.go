@@ -16,6 +16,7 @@ var ErrPaymentNotFound = errors.New("payment not found")
 type PaymentRepository interface {
 	Create(ctx context.Context, payment model.Payment) (model.Payment, bool, error)
 	GetByID(ctx context.Context, id string) (model.Payment, error)
+	UpdateStatus(ctx context.Context, id string, status model.PaymentStatus) (model.Payment, error)
 }
 
 type PostgresPaymentRepository struct {
@@ -80,6 +81,21 @@ WHERE id = $1`
 	payment, err := scanPayment(r.pool.QueryRow(ctx, query, id), nil)
 	if err != nil {
 		return model.Payment{}, fmt.Errorf("get payment by id: %w", err)
+	}
+
+	return payment, nil
+}
+
+func (r *PostgresPaymentRepository) UpdateStatus(ctx context.Context, id string, status model.PaymentStatus) (model.Payment, error) {
+	const query = `
+UPDATE payments
+SET status = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, amount_cents, currency, status, description, external_reference, idempotency_key, created_at, updated_at`
+
+	payment, err := scanPayment(r.pool.QueryRow(ctx, query, id, status), nil)
+	if err != nil {
+		return model.Payment{}, fmt.Errorf("update payment status: %w", err)
 	}
 
 	return payment, nil

@@ -43,6 +43,20 @@ func (r fakePaymentRepository) GetByID(ctx context.Context, id string) (model.Pa
 	return r.payment, nil
 }
 
+func (r fakePaymentRepository) UpdateStatus(ctx context.Context, id string, status model.PaymentStatus) (model.Payment, error) {
+	if r.err != nil {
+		return model.Payment{}, r.err
+	}
+
+	if r.payment.ID == "" {
+		return model.Payment{}, repository.ErrPaymentNotFound
+	}
+
+	r.payment.Status = status
+	r.payment.UpdatedAt = time.Now().UTC()
+	return r.payment, nil
+}
+
 func TestPaymentServiceCreateValidPayment(t *testing.T) {
 	svc := NewPaymentService(fakePaymentRepository{created: true})
 
@@ -146,5 +160,96 @@ func TestPaymentServiceGetByIDReturnsNotFound(t *testing.T) {
 	_, err := svc.GetByID(context.Background(), "5de6b73e-1c90-4597-84a8-2d4bf34be7f8")
 	if !errors.Is(err, ErrPaymentNotFound) {
 		t.Fatalf("GetByID() error = %v, want ErrPaymentNotFound", err)
+	}
+}
+
+func TestPaymentServiceUpdateStatusMovesPendingToSucceeded(t *testing.T) {
+	existing := model.Payment{
+		ID:          "5de6b73e-1c90-4597-84a8-2d4bf34be7f8",
+		AmountCents: 1299,
+		Currency:    "USD",
+		Status:      model.PaymentStatusPending,
+	}
+	svc := NewPaymentService(fakePaymentRepository{payment: existing})
+
+	payment, err := svc.UpdateStatus(context.Background(), existing.ID, model.UpdatePaymentStatusRequest{
+		Status: " SUCCEEDED ",
+	})
+	if err != nil {
+		t.Fatalf("UpdateStatus() error = %v", err)
+	}
+
+	if payment.Status != model.PaymentStatusSucceeded {
+		t.Fatalf("Status = %q, want %q", payment.Status, model.PaymentStatusSucceeded)
+	}
+}
+
+func TestPaymentServiceUpdateStatusMovesPendingToFailed(t *testing.T) {
+	existing := model.Payment{
+		ID:          "5de6b73e-1c90-4597-84a8-2d4bf34be7f8",
+		AmountCents: 1299,
+		Currency:    "USD",
+		Status:      model.PaymentStatusPending,
+	}
+	svc := NewPaymentService(fakePaymentRepository{payment: existing})
+
+	payment, err := svc.UpdateStatus(context.Background(), existing.ID, model.UpdatePaymentStatusRequest{
+		Status: model.PaymentStatusFailed,
+	})
+	if err != nil {
+		t.Fatalf("UpdateStatus() error = %v", err)
+	}
+
+	if payment.Status != model.PaymentStatusFailed {
+		t.Fatalf("Status = %q, want %q", payment.Status, model.PaymentStatusFailed)
+	}
+}
+
+func TestPaymentServiceUpdateStatusAllowsSameStatusReplay(t *testing.T) {
+	existing := model.Payment{
+		ID:          "5de6b73e-1c90-4597-84a8-2d4bf34be7f8",
+		AmountCents: 1299,
+		Currency:    "USD",
+		Status:      model.PaymentStatusSucceeded,
+	}
+	svc := NewPaymentService(fakePaymentRepository{payment: existing})
+
+	payment, err := svc.UpdateStatus(context.Background(), existing.ID, model.UpdatePaymentStatusRequest{
+		Status: model.PaymentStatusSucceeded,
+	})
+	if err != nil {
+		t.Fatalf("UpdateStatus() error = %v", err)
+	}
+
+	if payment.Status != model.PaymentStatusSucceeded {
+		t.Fatalf("Status = %q, want %q", payment.Status, model.PaymentStatusSucceeded)
+	}
+}
+
+func TestPaymentServiceUpdateStatusRejectsTerminalChange(t *testing.T) {
+	existing := model.Payment{
+		ID:          "5de6b73e-1c90-4597-84a8-2d4bf34be7f8",
+		AmountCents: 1299,
+		Currency:    "USD",
+		Status:      model.PaymentStatusSucceeded,
+	}
+	svc := NewPaymentService(fakePaymentRepository{payment: existing})
+
+	_, err := svc.UpdateStatus(context.Background(), existing.ID, model.UpdatePaymentStatusRequest{
+		Status: model.PaymentStatusFailed,
+	})
+	if !errors.Is(err, ErrInvalidStatusTransition) {
+		t.Fatalf("UpdateStatus() error = %v, want ErrInvalidStatusTransition", err)
+	}
+}
+
+func TestPaymentServiceUpdateStatusRejectsInvalidStatus(t *testing.T) {
+	svc := NewPaymentService(fakePaymentRepository{})
+
+	_, err := svc.UpdateStatus(context.Background(), "5de6b73e-1c90-4597-84a8-2d4bf34be7f8", model.UpdatePaymentStatusRequest{
+		Status: "settled",
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("UpdateStatus() error = %v, want ErrValidation", err)
 	}
 }

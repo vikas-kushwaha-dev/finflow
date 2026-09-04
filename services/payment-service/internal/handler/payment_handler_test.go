@@ -35,6 +35,13 @@ func (s fakePaymentService) GetByID(ctx context.Context, id string) (model.Payme
 	return s.result.Payment, nil
 }
 
+func (s fakePaymentService) UpdateStatus(ctx context.Context, id string, request model.UpdatePaymentStatusRequest) (model.Payment, error) {
+	if s.err != nil {
+		return model.Payment{}, s.err
+	}
+	return s.result.Payment, nil
+}
+
 func TestCreatePaymentReturnsCreated(t *testing.T) {
 	router := chi.NewRouter()
 	NewPaymentHandler(fakePaymentService{
@@ -194,5 +201,92 @@ func TestGetPaymentReturnsNotFound(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestUpdatePaymentStatusReturnsPayment(t *testing.T) {
+	router := chi.NewRouter()
+	NewPaymentHandler(fakePaymentService{
+		result: service.CreatePaymentResult{
+			Payment: model.Payment{
+				ID:          "5de6b73e-1c90-4597-84a8-2d4bf34be7f8",
+				AmountCents: 1299,
+				Currency:    "USD",
+				Status:      model.PaymentStatusSucceeded,
+			},
+		},
+	}).RegisterRoutes(router)
+
+	req := httptest.NewRequest(http.MethodPatch, "/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8/status", bytes.NewBufferString(`{"status":"succeeded"}`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	var payment model.Payment
+	if err := json.NewDecoder(rec.Body).Decode(&payment); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payment.Status != model.PaymentStatusSucceeded {
+		t.Fatalf("Payment.Status = %q, want succeeded", payment.Status)
+	}
+}
+
+func TestUpdatePaymentStatusRejectsBadJSON(t *testing.T) {
+	router := chi.NewRouter()
+	NewPaymentHandler(fakePaymentService{}).RegisterRoutes(router)
+
+	req := httptest.NewRequest(http.MethodPatch, "/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8/status", bytes.NewBufferString(`{"status":`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestUpdatePaymentStatusReturnsValidationError(t *testing.T) {
+	router := chi.NewRouter()
+	NewPaymentHandler(fakePaymentService{err: service.ErrValidation}).RegisterRoutes(router)
+
+	req := httptest.NewRequest(http.MethodPatch, "/payments/not-a-uuid/status", bytes.NewBufferString(`{"status":"succeeded"}`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestUpdatePaymentStatusReturnsNotFound(t *testing.T) {
+	router := chi.NewRouter()
+	NewPaymentHandler(fakePaymentService{err: service.ErrPaymentNotFound}).RegisterRoutes(router)
+
+	req := httptest.NewRequest(http.MethodPatch, "/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8/status", bytes.NewBufferString(`{"status":"succeeded"}`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+func TestUpdatePaymentStatusReturnsConflict(t *testing.T) {
+	router := chi.NewRouter()
+	NewPaymentHandler(fakePaymentService{err: service.ErrInvalidStatusTransition}).RegisterRoutes(router)
+
+	req := httptest.NewRequest(http.MethodPatch, "/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8/status", bytes.NewBufferString(`{"status":"failed"}`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusConflict)
 	}
 }

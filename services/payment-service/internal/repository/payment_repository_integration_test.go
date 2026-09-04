@@ -80,8 +80,24 @@ func TestPostgresPaymentRepositoryIntegration(t *testing.T) {
 		t.Fatalf("idempotent Create() ID = %q, want %q", replayed.ID, created.ID)
 	}
 
+	updated, err := repo.UpdateStatus(ctx, created.ID, model.PaymentStatusSucceeded)
+	if err != nil {
+		t.Fatalf("UpdateStatus() error = %v", err)
+	}
+	if updated.Status != model.PaymentStatusSucceeded {
+		t.Fatalf("UpdateStatus() Status = %q, want %q", updated.Status, model.PaymentStatusSucceeded)
+	}
+	if !updated.UpdatedAt.After(created.UpdatedAt) && !updated.UpdatedAt.Equal(created.UpdatedAt) {
+		t.Fatalf("UpdateStatus() UpdatedAt = %s, want at or after %s", updated.UpdatedAt, created.UpdatedAt)
+	}
+
 	_, err = repo.GetByID(ctx, uuid.NewString())
 	if !errors.Is(err, ErrPaymentNotFound) {
 		t.Fatalf("GetByID() error = %v, want ErrPaymentNotFound", err)
+	}
+
+	_, err = repo.UpdateStatus(ctx, uuid.NewString(), model.PaymentStatusSucceeded)
+	if !errors.Is(err, ErrPaymentNotFound) {
+		t.Fatalf("UpdateStatus() error = %v, want ErrPaymentNotFound", err)
 	}
 }

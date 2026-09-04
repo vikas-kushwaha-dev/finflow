@@ -15,7 +15,9 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - `GET /health`
 - `POST /api/v1/payments`
 - `GET /api/v1/payments/{id}`
+- `PATCH /api/v1/payments/{id}/status`
 - request validation
+- payment status transition rules
 - optional idempotency support through the `Idempotency-Key` header
 - JSON error responses with request IDs
 - structured server logs
@@ -60,6 +62,14 @@ Retrieve a payment:
 
 ```bash
 curl http://localhost:8080/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8
+```
+
+Update payment status:
+
+```bash
+curl -X PATCH http://localhost:8080/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8/status \
+  -H "Content-Type: application/json" \
+  -d "{\"status\":\"succeeded\"}"
 ```
 
 ## Test
@@ -129,11 +139,45 @@ Missing payments return:
 }
 ```
 
+### `PATCH /api/v1/payments/{id}/status`
+
+Updates a payment status.
+
+Request body:
+
+```json
+{
+  "status": "succeeded"
+}
+```
+
+Allowed statuses:
+
+- `pending`
+- `succeeded`
+- `failed`
+
+Transition rules:
+
+- `pending` can move to `succeeded`
+- `pending` can move to `failed`
+- repeating the current status is allowed
+- terminal statuses cannot move to another status
+
+Invalid transitions return:
+
+```json
+{
+  "error": "invalid payment status transition",
+  "request_id": "example-request-id"
+}
+```
+
 ## Next milestone
 
-Milestone 4 should add payment status lifecycle:
+Milestone 5 should harden idempotency:
 
-- `PATCH /api/v1/payments/{id}/status`
-- valid payment status transition rules
-- `updated_at` handling on status changes
-- service and handler tests for status behavior
+- store a request hash with each idempotency key
+- reject same key with a different request body
+- add concurrent idempotency tests
+- document idempotency behavior more precisely

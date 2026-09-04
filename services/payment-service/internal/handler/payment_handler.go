@@ -15,6 +15,7 @@ import (
 type paymentCreator interface {
 	Create(ctx context.Context, request model.CreatePaymentRequest, idempotencyKey string) (service.CreatePaymentResult, error)
 	GetByID(ctx context.Context, id string) (model.Payment, error)
+	UpdateStatus(ctx context.Context, id string, request model.UpdatePaymentStatusRequest) (model.Payment, error)
 }
 
 type PaymentHandler struct {
@@ -28,6 +29,7 @@ func NewPaymentHandler(service paymentCreator) *PaymentHandler {
 func (h *PaymentHandler) RegisterRoutes(router chi.Router) {
 	router.Post("/payments", h.createPayment)
 	router.Get("/payments/{id}", h.getPayment)
+	router.Patch("/payments/{id}/status", h.updatePaymentStatus)
 }
 
 func (h *PaymentHandler) createPayment(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +75,40 @@ func (h *PaymentHandler) getPayment(w http.ResponseWriter, r *http.Request) {
 		}
 
 		writeRequestError(w, r, http.StatusInternalServerError, "could not get payment")
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, payment)
+}
+
+func (h *PaymentHandler) updatePaymentStatus(w http.ResponseWriter, r *http.Request) {
+	var request model.UpdatePaymentStatusRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&request); err != nil {
+		writeRequestError(w, r, http.StatusBadRequest, "invalid JSON request body")
+		return
+	}
+
+	payment, err := h.service.UpdateStatus(r.Context(), chi.URLParam(r, "id"), request)
+	if err != nil {
+		if errors.Is(err, service.ErrValidation) {
+			writeRequestError(w, r, http.StatusBadRequest, "invalid payment status request")
+			return
+		}
+
+		if errors.Is(err, service.ErrPaymentNotFound) {
+			writeRequestError(w, r, http.StatusNotFound, "payment not found")
+			return
+		}
+
+		if errors.Is(err, service.ErrInvalidStatusTransition) {
+			writeRequestError(w, r, http.StatusConflict, "invalid payment status transition")
+			return
+		}
+
+		writeRequestError(w, r, http.StatusInternalServerError, "could not update payment status")
 		return
 	}
 

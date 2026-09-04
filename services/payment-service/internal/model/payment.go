@@ -28,3 +28,7 @@ type CreatePaymentRequest struct {
 	Description       string `json:"description"`
 	ExternalReference string `json:"external_reference"`
 }
+
+type UpdatePaymentStatusRequest struct {
+	Status PaymentStatus `json:"status"`
+}
