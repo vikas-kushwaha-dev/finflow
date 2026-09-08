@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -13,6 +16,7 @@ import (
 )
 
 var ErrValidation = errors.New("validation failed")
+var ErrIdempotencyConflict = repository.ErrIdempotencyConflict
 var ErrInvalidStatusTransition = errors.New("invalid payment status transition")
 var ErrPaymentNotFound = repository.ErrPaymentNotFound
 
@@ -39,6 +43,11 @@ func (s *PaymentService) Create(ctx context.Context, request model.CreatePayment
 		return CreatePaymentResult{}, err
 	}
 
+	idempotencyHash := ""
+	if idempotencyKey != "" {
+		idempotencyHash = createPaymentRequestHash(request)
+	}
+
 	payment := model.Payment{
 		ID:                uuid.NewString(),
 		AmountCents:       request.AmountCents,
@@ -47,10 +56,14 @@ func (s *PaymentService) Create(ctx context.Context, request model.CreatePayment
 		Description:       request.Description,
 		ExternalReference: request.ExternalReference,
 		IdempotencyKey:    idempotencyKey,
+		IdempotencyHash:   idempotencyHash,
 	}
 
 	createdPayment, created, err := s.repository.Create(ctx, payment)
 	if err != nil {
+		if errors.Is(err, repository.ErrIdempotencyConflict) {
+			return CreatePaymentResult{}, ErrIdempotencyConflict
+		}
 		return CreatePaymentResult{}, err
 	}
 
@@ -157,4 +170,16 @@ func isKnownStatus(status model.PaymentStatus) bool {
 func canTransition(from, to model.PaymentStatus) bool {
 	return from == model.PaymentStatusPending &&
 		(to == model.PaymentStatusSucceeded || to == model.PaymentStatusFailed)
+}
+
+func createPaymentRequestHash(request model.CreatePaymentRequest) string {
+	parts := []string{
+		strconv.FormatInt(request.AmountCents, 10),
+		request.Currency,
+		request.Description,
+		request.ExternalReference,
+	}
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+
+	return hex.EncodeToString(sum[:])
 }

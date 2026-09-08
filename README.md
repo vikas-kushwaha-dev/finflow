@@ -19,6 +19,7 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - request validation
 - payment status transition rules
 - optional idempotency support through the `Idempotency-Key` header
+- idempotency request hashing to reject conflicting retries
 - JSON error responses with request IDs
 - structured server logs
 - PostgreSQL integration test entry point
@@ -57,6 +58,8 @@ curl -X POST http://localhost:8080/api/v1/payments \
 ```
 
 Send the same request with the same `Idempotency-Key` to receive the original payment instead of creating a duplicate.
+
+If the same `Idempotency-Key` is reused with different payment details, the API returns `409 Conflict`.
 
 Retrieve a payment:
 
@@ -109,6 +112,12 @@ Request body:
 Headers:
 
 - `Idempotency-Key`: optional, recommended for client retry safety
+
+Idempotency behavior:
+
+- same key and same normalized request returns the original payment
+- same key and different normalized request returns `409 Conflict`
+- requests without an idempotency key always create a new payment
 
 Success response:
 
@@ -175,9 +184,9 @@ Invalid transitions return:
 
 ## Next milestone
 
-Milestone 5 should harden idempotency:
+Milestone 6 should improve configuration and observability:
 
-- store a request hash with each idempotency key
-- reject same key with a different request body
-- add concurrent idempotency tests
-- document idempotency behavior more precisely
+- validate required configuration at startup
+- add `/ready` for database readiness
+- improve request logging
+- prepare metrics endpoint structure

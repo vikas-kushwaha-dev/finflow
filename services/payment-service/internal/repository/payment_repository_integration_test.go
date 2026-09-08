@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -51,6 +52,7 @@ func TestPostgresPaymentRepositoryIntegration(t *testing.T) {
 		Description:       "Integration test payment",
 		ExternalReference: reference,
 		IdempotencyKey:    key,
+		IdempotencyHash:   "same-request-hash",
 	}
 
 	created, wasCreated, err := repo.Create(ctx, input)
@@ -78,6 +80,82 @@ func TestPostgresPaymentRepositoryIntegration(t *testing.T) {
 	}
 	if replayed.ID != created.ID {
 		t.Fatalf("idempotent Create() ID = %q, want %q", replayed.ID, created.ID)
+	}
+
+	conflictingInput := input
+	conflictingInput.ID = uuid.NewString()
+	conflictingInput.AmountCents = 9999
+	conflictingInput.IdempotencyHash = "different-request-hash"
+
+	_, _, err = repo.Create(ctx, conflictingInput)
+	if !errors.Is(err, ErrIdempotencyConflict) {
+		t.Fatalf("conflicting Create() error = %v, want ErrIdempotencyConflict", err)
+	}
+
+	concurrentKey := "integration-concurrent-" + uuid.NewString()
+	concurrentReference := "integration-concurrent-" + uuid.NewString()
+	concurrentInput := model.Payment{
+		ID:                uuid.NewString(),
+		AmountCents:       2500,
+		Currency:          "USD",
+		Status:            model.PaymentStatusPending,
+		ExternalReference: concurrentReference,
+		IdempotencyKey:    concurrentKey,
+		IdempotencyHash:   "concurrent-request-hash",
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_, _ = pool.Exec(cleanupCtx, "DELETE FROM payments WHERE idempotency_key = $1 OR external_reference = $2", concurrentKey, concurrentReference)
+	})
+
+	var wg sync.WaitGroup
+	results := make(chan model.Payment, 2)
+	errorsCh := make(chan error, 2)
+	createdCh := make(chan bool, 2)
+
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			payment := concurrentInput
+			payment.ID = uuid.NewString()
+			result, wasCreated, err := repo.Create(context.Background(), payment)
+			if err != nil {
+				errorsCh <- err
+				return
+			}
+			results <- result
+			createdCh <- wasCreated
+		}()
+	}
+	wg.Wait()
+	close(results)
+	close(errorsCh)
+	close(createdCh)
+
+	for err := range errorsCh {
+		t.Fatalf("concurrent Create() error = %v", err)
+	}
+
+	createdCount := 0
+	var firstID string
+	for wasCreated := range createdCh {
+		if wasCreated {
+			createdCount++
+		}
+	}
+	for result := range results {
+		if firstID == "" {
+			firstID = result.ID
+			continue
+		}
+		if result.ID != firstID {
+			t.Fatalf("concurrent Create() returned different IDs: %q and %q", firstID, result.ID)
+		}
+	}
+	if createdCount != 1 {
+		t.Fatalf("concurrent Create() createdCount = %d, want 1", createdCount)
 	}
 
 	updated, err := repo.UpdateStatus(ctx, created.ID, model.PaymentStatusSucceeded)

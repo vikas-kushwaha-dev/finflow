@@ -101,6 +101,9 @@ func TestCreatePaymentReturnsOKForIdempotentReplay(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
+	if rec.Header().Get("X-Idempotent-Replay") != "true" {
+		t.Fatalf("X-Idempotent-Replay = %q, want true", rec.Header().Get("X-Idempotent-Replay"))
+	}
 }
 
 func TestCreatePaymentRejectsBadJSON(t *testing.T) {
@@ -142,6 +145,20 @@ func TestCreatePaymentReturnsServerError(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
+	}
+}
+
+func TestCreatePaymentReturnsIdempotencyConflict(t *testing.T) {
+	router := chi.NewRouter()
+	NewPaymentHandler(fakePaymentService{err: service.ErrIdempotencyConflict}).RegisterRoutes(router)
+
+	req := httptest.NewRequest(http.MethodPost, "/payments", bytes.NewBufferString(`{"amount_cents":1299,"currency":"USD"}`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusConflict)
 	}
 }
 

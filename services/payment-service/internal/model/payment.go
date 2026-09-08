@@ -18,6 +18,7 @@ type Payment struct {
 	Description       string        `json:"description,omitempty"`
 	ExternalReference string        `json:"external_reference,omitempty"`
 	IdempotencyKey    string        `json:"idempotency_key,omitempty"`
+	IdempotencyHash   string        `json:"-"`
 	CreatedAt         time.Time     `json:"created_at"`
 	UpdatedAt         time.Time     `json:"updated_at"`
 }

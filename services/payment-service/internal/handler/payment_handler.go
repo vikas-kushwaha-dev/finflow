@@ -49,6 +49,11 @@ func (h *PaymentHandler) createPayment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if errors.Is(err, service.ErrIdempotencyConflict) {
+			writeRequestError(w, r, http.StatusConflict, "idempotency key reused with different request")
+			return
+		}
+
 		writeRequestError(w, r, http.StatusInternalServerError, "could not create payment")
 		return
 	}
@@ -56,6 +61,7 @@ func (h *PaymentHandler) createPayment(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusCreated
 	if !result.Created {
 		status = http.StatusOK
+		w.Header().Set("X-Idempotent-Replay", "true")
 	}
 
 	WriteJSON(w, status, result.Payment)

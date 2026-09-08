@@ -84,6 +84,9 @@ func TestPaymentServiceCreateValidPayment(t *testing.T) {
 	if result.Payment.IdempotencyKey != "key-1" {
 		t.Fatalf("IdempotencyKey = %q, want key-1", result.Payment.IdempotencyKey)
 	}
+	if result.Payment.IdempotencyHash == "" {
+		t.Fatalf("IdempotencyHash = empty, want request hash")
+	}
 }
 
 func TestPaymentServiceCreateRejectsInvalidPayment(t *testing.T) {
@@ -121,6 +124,20 @@ func TestPaymentServiceCreateReturnsExistingIdempotentPayment(t *testing.T) {
 	}
 	if result.Payment.ID != existing.ID {
 		t.Fatalf("Payment.ID = %q, want existing payment", result.Payment.ID)
+	}
+}
+
+func TestPaymentServiceCreateReturnsIdempotencyConflict(t *testing.T) {
+	svc := NewPaymentService(fakePaymentRepository{
+		err: repository.ErrIdempotencyConflict,
+	})
+
+	_, err := svc.Create(context.Background(), model.CreatePaymentRequest{
+		AmountCents: 1299,
+		Currency:    "USD",
+	}, "key-1")
+	if !errors.Is(err, ErrIdempotencyConflict) {
+		t.Fatalf("Create() error = %v, want ErrIdempotencyConflict", err)
 	}
 }
 
