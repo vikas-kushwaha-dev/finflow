@@ -1,0 +1,10 @@
+.git
+.gocache
+.gomodcache
+.gotmp
+details
+docs
+services/payment-service/*.exe
+services/payment-service/*.test
+tmp
+

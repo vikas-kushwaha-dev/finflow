@@ -10,6 +10,8 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - Chi HTTP router
 - PostgreSQL connection via `pgxpool`
 - Docker Compose PostgreSQL setup
+- Dockerized payment service
+- one-shot migration container
 - SQL migration runner for the `payments` table
 - Repository, service, handler, model, config, and database packages
 - `GET /health`
@@ -41,10 +43,7 @@ From the project root:
 
 ```bash
 copy .env.example .env
-docker compose up -d
-cd services/payment-service
-go run ./cmd/migrate
-go run ./cmd/api
+docker compose up --build -d
 ```
 
 Then in another terminal:
@@ -218,10 +217,10 @@ Invalid transitions return:
 
 ## Next milestone
 
-Milestone 7 should Dockerize the payment service:
+Milestone 8 should add authentication and basic security:
 
-- add a production-style `Dockerfile`
-- run the payment service from Docker Compose
-- wire the app container to PostgreSQL
-- add container health checks
-- verify the service runs with one Compose command
+- add API key or JWT-based authentication
+- protect payment endpoints
+- keep health/readiness endpoints public
+- add request body size limits
+- add tests for authorized and unauthorized requests
