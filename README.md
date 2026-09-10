@@ -13,6 +13,8 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - SQL migration runner for the `payments` table
 - Repository, service, handler, model, config, and database packages
 - `GET /health`
+- `GET /ready`
+- `GET /metrics`
 - `POST /api/v1/payments`
 - `GET /api/v1/payments/{id}`
 - `PATCH /api/v1/payments/{id}/status`
@@ -22,6 +24,9 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - idempotency request hashing to reject conflicting retries
 - JSON error responses with request IDs
 - structured server logs
+- startup configuration validation
+- readiness checks for PostgreSQL
+- lightweight JSON runtime metrics
 - PostgreSQL integration test entry point
 - unit tests for service and handler behavior
 
@@ -46,6 +51,18 @@ Then in another terminal:
 
 ```bash
 curl http://localhost:8080/health
+```
+
+Readiness checks confirm the service can reach PostgreSQL:
+
+```bash
+curl http://localhost:8080/ready
+```
+
+Runtime metrics are exposed as JSON:
+
+```bash
+curl http://localhost:8080/metrics
 ```
 
 Create a payment:
@@ -95,6 +112,23 @@ go test ./internal/repository
 ### `GET /health`
 
 Returns service status.
+
+### `GET /ready`
+
+Returns `200 OK` when PostgreSQL is reachable and `503 Service Unavailable` when it is not.
+
+### `GET /metrics`
+
+Returns lightweight runtime counters:
+
+```json
+{
+  "uptime_seconds": 120,
+  "started_at": "2026-09-10T10:00:00Z",
+  "total_requests": 42,
+  "total_server_errors": 0
+}
+```
 
 ### `POST /api/v1/payments`
 
@@ -184,9 +218,10 @@ Invalid transitions return:
 
 ## Next milestone
 
-Milestone 6 should improve configuration and observability:
+Milestone 7 should Dockerize the payment service:
 
-- validate required configuration at startup
-- add `/ready` for database readiness
-- improve request logging
-- prepare metrics endpoint structure
+- add a production-style `Dockerfile`
+- run the payment service from Docker Compose
+- wire the app container to PostgreSQL
+- add container health checks
+- verify the service runs with one Compose command
