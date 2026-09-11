@@ -13,6 +13,9 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - Dockerized payment service
 - one-shot migration container
 - SQL migration runner for the `payments` table
+- Ledger service foundation
+- Double-entry ledger rules
+- Ledger account and entry migrations
 - Repository, service, handler, model, config, and database packages
 - `GET /health`
 - `GET /ready`
@@ -102,6 +105,12 @@ curl -X PATCH http://localhost:8080/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4b
 ## Test
 
 From `services/payment-service`:
+
+```bash
+go test ./...
+```
+
+From `services/ledger-service`:
 
 ```bash
 go test ./...
@@ -243,10 +252,10 @@ Invalid transitions return:
 
 ## Next milestone
 
-Milestone 9 should add the ledger service:
+Milestone 10 should add Kafka/eventing:
 
-- model ledger accounts and entries
-- add double-entry ledger rules
-- record payment movements
-- add ledger database migrations
-- add tests for balanced ledger entries
+- add Kafka through Docker Compose
+- publish `payment.created` and `payment.status_changed` events
+- add event schema docs
+- add an outbox table for reliable publishing
+- add publisher tests
