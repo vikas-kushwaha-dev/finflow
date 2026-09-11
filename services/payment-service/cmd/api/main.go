@@ -18,6 +18,7 @@ import (
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/handler"
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/observability"
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/repository"
+	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/security"
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/service"
 )
 
@@ -49,6 +50,7 @@ func main() {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
+	router.Use(security.Headers)
 	router.Use(observability.RequestLogger(logger, metrics))
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(15 * time.Second))
@@ -82,6 +84,8 @@ func main() {
 	})
 
 	router.Route("/api/v1", func(r chi.Router) {
+		r.Use(security.APIKey(cfg.APIKey))
+		r.Use(security.MaxBodyBytes(cfg.MaxBodyBytes))
 		paymentHandler.RegisterRoutes(r)
 	})
 

@@ -38,6 +38,12 @@ func (h *PaymentHandler) createPayment(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&request); err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			writeRequestError(w, r, http.StatusRequestEntityTooLarge, "request body too large")
+			return
+		}
+
 		writeRequestError(w, r, http.StatusBadRequest, "invalid JSON request body")
 		return
 	}
@@ -93,6 +99,12 @@ func (h *PaymentHandler) updatePaymentStatus(w http.ResponseWriter, r *http.Requ
 	decoder.DisallowUnknownFields()
 
 	if err := decoder.Decode(&request); err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			writeRequestError(w, r, http.StatusRequestEntityTooLarge, "request body too large")
+			return
+		}
+
 		writeRequestError(w, r, http.StatusBadRequest, "invalid JSON request body")
 		return
 	}

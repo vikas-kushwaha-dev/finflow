@@ -21,6 +21,9 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - `GET /api/v1/payments/{id}`
 - `PATCH /api/v1/payments/{id}/status`
 - request validation
+- API key authentication for payment endpoints
+- request body size limit for payment endpoints
+- basic HTTP security headers
 - payment status transition rules
 - optional idempotency support through the `Idempotency-Key` header
 - idempotency request hashing to reject conflicting retries
@@ -46,6 +49,8 @@ copy .env.example .env
 docker compose up --build -d
 ```
 
+The local example API key is `local-dev-api-key-change-me`. Change `API_KEY` before using this outside local development.
+
 Then in another terminal:
 
 ```bash
@@ -69,6 +74,7 @@ Create a payment:
 ```bash
 curl -X POST http://localhost:8080/api/v1/payments \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: local-dev-api-key-change-me" \
   -H "Idempotency-Key: demo-key-001" \
   -d "{\"amount_cents\":1299,\"currency\":\"USD\",\"description\":\"Test payment\"}"
 ```
@@ -80,7 +86,8 @@ If the same `Idempotency-Key` is reused with different payment details, the API 
 Retrieve a payment:
 
 ```bash
-curl http://localhost:8080/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8
+curl http://localhost:8080/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8 \
+  -H "X-API-Key: local-dev-api-key-change-me"
 ```
 
 Update payment status:
@@ -88,6 +95,7 @@ Update payment status:
 ```bash
 curl -X PATCH http://localhost:8080/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8/status \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: local-dev-api-key-change-me" \
   -d "{\"status\":\"succeeded\"}"
 ```
 
@@ -107,6 +115,24 @@ go test ./internal/repository
 ```
 
 ## API
+
+Payment endpoints require an API key:
+
+```bash
+X-API-Key: local-dev-api-key-change-me
+```
+
+You can also send:
+
+```bash
+Authorization: Bearer local-dev-api-key-change-me
+```
+
+Public endpoints:
+
+- `GET /health`
+- `GET /ready`
+- `GET /metrics`
 
 ### `GET /health`
 
@@ -217,10 +243,10 @@ Invalid transitions return:
 
 ## Next milestone
 
-Milestone 8 should add authentication and basic security:
+Milestone 9 should add the ledger service:
 
-- add API key or JWT-based authentication
-- protect payment endpoints
-- keep health/readiness endpoints public
-- add request body size limits
-- add tests for authorized and unauthorized requests
+- model ledger accounts and entries
+- add double-entry ledger rules
+- record payment movements
+- add ledger database migrations
+- add tests for balanced ledger entries

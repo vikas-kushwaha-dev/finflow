@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/model"
+	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/security"
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/service"
 )
 
@@ -117,6 +118,21 @@ func TestCreatePaymentRejectsBadJSON(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestCreatePaymentRejectsTooLargeBody(t *testing.T) {
+	router := chi.NewRouter()
+	router.Use(security.MaxBodyBytes(4))
+	NewPaymentHandler(fakePaymentService{}).RegisterRoutes(router)
+
+	req := httptest.NewRequest(http.MethodPost, "/payments", bytes.NewBufferString(`{"amount_cents":1299}`))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusRequestEntityTooLarge)
 	}
 }
 
