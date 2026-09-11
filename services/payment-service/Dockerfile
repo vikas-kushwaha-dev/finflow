@@ -9,6 +9,7 @@ COPY services/payment-service ./
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/outbox-publisher ./cmd/outbox-publisher
 
 FROM alpine:3.22
 
@@ -18,6 +19,7 @@ WORKDIR /app
 
 COPY --from=build /out/api /app/api
 COPY --from=build /out/migrate /app/migrate
+COPY --from=build /out/outbox-publisher /app/outbox-publisher
 COPY migrations /app/migrations
 
 USER finflow
@@ -25,4 +27,3 @@ USER finflow
 EXPOSE 8080
 
 CMD ["/app/api"]
-

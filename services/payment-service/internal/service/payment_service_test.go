@@ -43,7 +43,7 @@ func (r fakePaymentRepository) GetByID(ctx context.Context, id string) (model.Pa
 	return r.payment, nil
 }
 
-func (r fakePaymentRepository) UpdateStatus(ctx context.Context, id string, status model.PaymentStatus) (model.Payment, error) {
+func (r fakePaymentRepository) UpdateStatus(ctx context.Context, id string, previousStatus model.PaymentStatus, status model.PaymentStatus) (model.Payment, error) {
 	if r.err != nil {
 		return model.Payment{}, r.err
 	}

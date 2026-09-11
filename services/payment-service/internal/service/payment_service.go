@@ -117,7 +117,7 @@ func (s *PaymentService) UpdateStatus(ctx context.Context, id string, request mo
 		return model.Payment{}, ErrInvalidStatusTransition
 	}
 
-	updated, err := s.repository.UpdateStatus(ctx, id, status)
+	updated, err := s.repository.UpdateStatus(ctx, id, current.Status, status)
 	if err != nil {
 		if errors.Is(err, repository.ErrPaymentNotFound) {
 			return model.Payment{}, ErrPaymentNotFound

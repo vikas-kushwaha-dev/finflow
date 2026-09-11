@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/event"
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/model"
 )
 
@@ -17,7 +18,7 @@ var ErrIdempotencyConflict = errors.New("idempotency key reused with different r
 type PaymentRepository interface {
 	Create(ctx context.Context, payment model.Payment) (model.Payment, bool, error)
 	GetByID(ctx context.Context, id string) (model.Payment, error)
-	UpdateStatus(ctx context.Context, id string, status model.PaymentStatus) (model.Payment, error)
+	UpdateStatus(ctx context.Context, id string, previousStatus model.PaymentStatus, status model.PaymentStatus) (model.Payment, error)
 }
 
 type PostgresPaymentRepository struct {
@@ -30,7 +31,7 @@ func NewPostgresPaymentRepository(pool *pgxpool.Pool) *PostgresPaymentRepository
 
 func (r *PostgresPaymentRepository) Create(ctx context.Context, payment model.Payment) (model.Payment, bool, error) {
 	if payment.IdempotencyKey == "" {
-		return r.insert(ctx, payment)
+		return r.insertWithOutbox(ctx, payment)
 	}
 
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
@@ -65,6 +66,14 @@ RETURNING id, amount_cents, currency, status, description, external_reference, i
 		payment.IdempotencyHash,
 	), nil)
 	if err == nil {
+		outboxEvent, err := event.NewPaymentCreated(createdPayment)
+		if err != nil {
+			return model.Payment{}, false, err
+		}
+		if err := insertOutboxEvent(ctx, tx, outboxEvent); err != nil {
+			return model.Payment{}, false, err
+		}
+
 		if err := tx.Commit(ctx); err != nil {
 			return model.Payment{}, false, fmt.Errorf("commit idempotent create transaction: %w", err)
 		}
@@ -110,22 +119,46 @@ WHERE id = $1`
 	return payment, nil
 }
 
-func (r *PostgresPaymentRepository) UpdateStatus(ctx context.Context, id string, status model.PaymentStatus) (model.Payment, error) {
+func (r *PostgresPaymentRepository) UpdateStatus(ctx context.Context, id string, previousStatus model.PaymentStatus, status model.PaymentStatus) (model.Payment, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return model.Payment{}, fmt.Errorf("begin status update transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	const query = `
 UPDATE payments
 SET status = $2, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND status = $3
 RETURNING id, amount_cents, currency, status, description, external_reference, idempotency_key, idempotency_request_hash, created_at, updated_at`
 
-	payment, err := scanPayment(r.pool.QueryRow(ctx, query, id, status), nil)
+	payment, err := scanPayment(tx.QueryRow(ctx, query, id, status, previousStatus), nil)
 	if err != nil {
 		return model.Payment{}, fmt.Errorf("update payment status: %w", err)
+	}
+
+	outboxEvent, err := event.NewPaymentStatusChanged(previousStatus, payment)
+	if err != nil {
+		return model.Payment{}, err
+	}
+	if err := insertOutboxEvent(ctx, tx, outboxEvent); err != nil {
+		return model.Payment{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return model.Payment{}, fmt.Errorf("commit status update transaction: %w", err)
 	}
 
 	return payment, nil
 }
 
-func (r *PostgresPaymentRepository) insert(ctx context.Context, payment model.Payment) (model.Payment, bool, error) {
+func (r *PostgresPaymentRepository) insertWithOutbox(ctx context.Context, payment model.Payment) (model.Payment, bool, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return model.Payment{}, false, fmt.Errorf("begin create transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	const query = `
 INSERT INTO payments (
 	id,
@@ -140,7 +173,7 @@ INSERT INTO payments (
 VALUES ($1, $2, $3, $4, $5, $6, NULL, NULL)
 RETURNING id, amount_cents, currency, status, description, external_reference, idempotency_key, idempotency_request_hash, created_at, updated_at`
 
-	createdPayment, err := scanPayment(r.pool.QueryRow(ctx, query,
+	createdPayment, err := scanPayment(tx.QueryRow(ctx, query,
 		payment.ID,
 		payment.AmountCents,
 		payment.Currency,
@@ -152,7 +185,45 @@ RETURNING id, amount_cents, currency, status, description, external_reference, i
 		return model.Payment{}, false, fmt.Errorf("insert payment: %w", err)
 	}
 
+	outboxEvent, err := event.NewPaymentCreated(createdPayment)
+	if err != nil {
+		return model.Payment{}, false, err
+	}
+	if err := insertOutboxEvent(ctx, tx, outboxEvent); err != nil {
+		return model.Payment{}, false, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return model.Payment{}, false, fmt.Errorf("commit create transaction: %w", err)
+	}
+
 	return createdPayment, true, nil
+}
+
+func insertOutboxEvent(ctx context.Context, tx pgx.Tx, outboxEvent event.OutboxEvent) error {
+	const query = `
+INSERT INTO outbox_events (
+	id,
+	aggregate_type,
+	aggregate_id,
+	event_type,
+	payload,
+	status
+)
+VALUES ($1, $2, $3, $4, $5, $6)`
+
+	if _, err := tx.Exec(ctx, query,
+		outboxEvent.ID,
+		outboxEvent.AggregateType,
+		outboxEvent.AggregateID,
+		outboxEvent.EventType,
+		outboxEvent.Payload,
+		outboxEvent.Status,
+	); err != nil {
+		return fmt.Errorf("insert outbox event: %w", err)
+	}
+
+	return nil
 }
 
 func scanPayment(row pgx.Row, created *bool) (model.Payment, error) {

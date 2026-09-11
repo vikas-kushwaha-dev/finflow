@@ -41,6 +41,7 @@ func TestPostgresPaymentRepositoryIntegration(t *testing.T) {
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
+		_, _ = pool.Exec(cleanupCtx, "DELETE FROM outbox_events WHERE aggregate_type = 'payment' AND aggregate_id IN (SELECT id::text FROM payments WHERE idempotency_key = $1 OR external_reference = $2)", key, reference)
 		_, _ = pool.Exec(cleanupCtx, "DELETE FROM payments WHERE idempotency_key = $1 OR external_reference = $2", key, reference)
 	})
 
@@ -106,6 +107,7 @@ func TestPostgresPaymentRepositoryIntegration(t *testing.T) {
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
+		_, _ = pool.Exec(cleanupCtx, "DELETE FROM outbox_events WHERE aggregate_type = 'payment' AND aggregate_id IN (SELECT id::text FROM payments WHERE idempotency_key = $1 OR external_reference = $2)", concurrentKey, concurrentReference)
 		_, _ = pool.Exec(cleanupCtx, "DELETE FROM payments WHERE idempotency_key = $1 OR external_reference = $2", concurrentKey, concurrentReference)
 	})
 
@@ -158,7 +160,7 @@ func TestPostgresPaymentRepositoryIntegration(t *testing.T) {
 		t.Fatalf("concurrent Create() createdCount = %d, want 1", createdCount)
 	}
 
-	updated, err := repo.UpdateStatus(ctx, created.ID, model.PaymentStatusSucceeded)
+	updated, err := repo.UpdateStatus(ctx, created.ID, model.PaymentStatusPending, model.PaymentStatusSucceeded)
 	if err != nil {
 		t.Fatalf("UpdateStatus() error = %v", err)
 	}
@@ -174,7 +176,7 @@ func TestPostgresPaymentRepositoryIntegration(t *testing.T) {
 		t.Fatalf("GetByID() error = %v, want ErrPaymentNotFound", err)
 	}
 
-	_, err = repo.UpdateStatus(ctx, uuid.NewString(), model.PaymentStatusSucceeded)
+	_, err = repo.UpdateStatus(ctx, uuid.NewString(), model.PaymentStatusPending, model.PaymentStatusSucceeded)
 	if !errors.Is(err, ErrPaymentNotFound) {
 		t.Fatalf("UpdateStatus() error = %v, want ErrPaymentNotFound", err)
 	}

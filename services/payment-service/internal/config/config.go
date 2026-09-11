@@ -13,12 +13,14 @@ import (
 )
 
 type Config struct {
-	AppEnv        string
-	HTTPAddr      string
-	DatabaseURL   string
-	MigrationsDir string
-	APIKey        string
-	MaxBodyBytes  int64
+	AppEnv             string
+	HTTPAddr           string
+	DatabaseURL        string
+	MigrationsDir      string
+	APIKey             string
+	MaxBodyBytes       int64
+	KafkaBrokers       []string
+	PaymentEventsTopic string
 }
 
 func Load() (Config, error) {
@@ -27,11 +29,13 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		AppEnv:        getEnv("APP_ENV", "local"),
-		HTTPAddr:      getEnv("HTTP_ADDR", ":8080"),
-		DatabaseURL:   getEnv("DATABASE_URL", "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable"),
-		MigrationsDir: getEnv("MIGRATIONS_DIR", "../../migrations"),
-		APIKey:        getEnv("API_KEY", "local-dev-api-key-change-me"),
+		AppEnv:             getEnv("APP_ENV", "local"),
+		HTTPAddr:           getEnv("HTTP_ADDR", ":8080"),
+		DatabaseURL:        getEnv("DATABASE_URL", "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable"),
+		MigrationsDir:      getEnv("MIGRATIONS_DIR", "../../migrations"),
+		APIKey:             getEnv("API_KEY", "local-dev-api-key-change-me"),
+		KafkaBrokers:       parseCSVEnv("KAFKA_BROKERS", "localhost:9092"),
+		PaymentEventsTopic: getEnv("PAYMENT_EVENTS_TOPIC", "finflow.payment.events"),
 	}
 
 	maxBodyBytes, err := parseInt64Env("MAX_REQUEST_BODY_BYTES", 1<<20)
@@ -76,6 +80,14 @@ func (c Config) Validate() error {
 		problems = append(problems, "MAX_REQUEST_BODY_BYTES must be greater than zero")
 	}
 
+	if len(c.KafkaBrokers) == 0 {
+		problems = append(problems, "KAFKA_BROKERS is required")
+	}
+
+	if strings.TrimSpace(c.PaymentEventsTopic) == "" {
+		problems = append(problems, "PAYMENT_EVENTS_TOPIC is required")
+	}
+
 	if len(problems) > 0 {
 		return fmt.Errorf("invalid config: %w: %s", ErrInvalidConfig, strings.Join(problems, "; "))
 	}
@@ -103,6 +115,20 @@ func parseInt64Env(key string, fallback int64) (int64, error) {
 	}
 
 	return parsed, nil
+}
+
+func parseCSVEnv(key string, fallback string) []string {
+	value := getEnv(key, fallback)
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+
+	return result
 }
 
 var ErrInvalidConfig = errors.New("invalid config")
