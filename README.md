@@ -20,6 +20,8 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - payment outbox table
 - outbox publisher command
 - payment event schemas for `payment.created` and `payment.status_changed`
+- ledger payment event consumer
+- idempotent ledger event consumption
 - Repository, service, handler, model, config, and database packages
 - `GET /health`
 - `GET /ready`
@@ -76,7 +78,7 @@ Runtime metrics are exposed as JSON:
 curl http://localhost:8080/metrics
 ```
 
-Kafka is included in Docker Compose for local event publishing. The payment service records events in `outbox_events`, and the outbox publisher sends them to the `finflow.payment.events` topic.
+Kafka is included in Docker Compose for local event publishing. The payment service records events in `outbox_events`, the outbox publisher sends them to the `finflow.payment.events` topic, and the ledger consumer creates balanced ledger entries from `payment.created` events.
 
 Create a payment:
 
@@ -258,10 +260,10 @@ Invalid transitions return:
 
 ## Next milestone
 
-Milestone 11 should add the ledger event consumer:
+Milestone 12 should add the API gateway:
 
-- consume payment events in the ledger service
-- make event handling idempotent
-- store consumed event IDs
-- create ledger entries from `payment.created`
-- add retry/dead-letter behavior
+- route requests to payment and ledger services
+- centralize authentication
+- add gateway request logging
+- add basic rate limiting
+- add gateway tests

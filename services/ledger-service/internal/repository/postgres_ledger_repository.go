@@ -63,6 +63,45 @@ func (r *PostgresLedgerRepository) CreateTransaction(ctx context.Context, entrie
 	return created, nil
 }
 
+func (r *PostgresLedgerRepository) CreateTransactionOnce(ctx context.Context, eventID string, eventType string, aggregateID string, entries []model.Entry) ([]model.Entry, bool, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, false, fmt.Errorf("begin idempotent ledger transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	const consumedQuery = `
+INSERT INTO consumed_ledger_events (event_id, event_type, aggregate_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (event_id) DO NOTHING`
+
+	tag, err := tx.Exec(ctx, consumedQuery, eventID, eventType, aggregateID)
+	if err != nil {
+		return nil, false, fmt.Errorf("record consumed ledger event: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, false, fmt.Errorf("commit duplicate ledger event transaction: %w", err)
+		}
+		return nil, false, nil
+	}
+
+	created := make([]model.Entry, 0, len(entries))
+	for _, entry := range entries {
+		createdEntry, err := insertEntry(ctx, tx, entry)
+		if err != nil {
+			return nil, false, err
+		}
+		created = append(created, createdEntry)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, false, fmt.Errorf("commit idempotent ledger transaction: %w", err)
+	}
+
+	return created, true, nil
+}
+
 func insertEntry(ctx context.Context, tx pgx.Tx, entry model.Entry) (model.Entry, error) {
 	const query = `
 INSERT INTO ledger_entries (

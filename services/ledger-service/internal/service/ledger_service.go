@@ -29,6 +29,38 @@ func NewLedgerService(repository repository.LedgerRepository) *LedgerService {
 }
 
 func (s *LedgerService) RecordPaymentMovement(ctx context.Context, request model.PaymentMovementRequest) ([]model.Entry, error) {
+	entries, err := s.buildPaymentMovement(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.repository.CreateTransaction(ctx, entries)
+}
+
+func (s *LedgerService) RecordPaymentMovementOnce(ctx context.Context, eventID string, eventType string, request model.PaymentMovementRequest) ([]model.Entry, bool, error) {
+	eventID = strings.TrimSpace(eventID)
+	eventType = strings.TrimSpace(eventType)
+	if _, err := uuid.Parse(eventID); err != nil {
+		return nil, false, ErrValidation
+	}
+	if eventType == "" {
+		return nil, false, ErrValidation
+	}
+
+	entries, err := s.buildPaymentMovement(ctx, request)
+	if err != nil {
+		return nil, false, err
+	}
+
+	created, processed, err := s.repository.CreateTransactionOnce(ctx, eventID, eventType, strings.TrimSpace(request.PaymentID), entries)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return created, processed, nil
+}
+
+func (s *LedgerService) buildPaymentMovement(ctx context.Context, request model.PaymentMovementRequest) ([]model.Entry, error) {
 	request.Currency = strings.ToUpper(strings.TrimSpace(request.Currency))
 	request.PaymentID = strings.TrimSpace(request.PaymentID)
 
@@ -74,7 +106,7 @@ func (s *LedgerService) RecordPaymentMovement(ctx context.Context, request model
 		return nil, err
 	}
 
-	return s.repository.CreateTransaction(ctx, entries)
+	return entries, nil
 }
 
 func ValidateBalanced(entries []model.Entry) error {

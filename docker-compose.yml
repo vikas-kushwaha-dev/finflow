@@ -112,5 +112,26 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  ledger-consumer:
+    build:
+      context: .
+      dockerfile: services/ledger-service/Dockerfile
+    container_name: finflow-ledger-consumer
+    command: ["/app/payment-consumer"]
+    environment:
+      APP_ENV: local
+      DATABASE_URL: postgres://finflow:finflow@postgres:5432/finflow?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      PAYMENT_EVENTS_TOPIC: finflow.payment.events
+      LEDGER_CONSUMER_GROUP_ID: ledger-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   finflow-postgres-data:

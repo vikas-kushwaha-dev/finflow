@@ -6,5 +6,6 @@ details
 docs
 services/payment-service/*.exe
 services/payment-service/*.test
+services/ledger-service/*.exe
+services/ledger-service/*.test
 tmp
-

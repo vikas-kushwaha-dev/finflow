@@ -34,6 +34,13 @@ func (r fakeLedgerRepository) CreateTransaction(ctx context.Context, entries []m
 	return entries, nil
 }
 
+func (r fakeLedgerRepository) CreateTransactionOnce(ctx context.Context, eventID string, eventType string, aggregateID string, entries []model.Entry) ([]model.Entry, bool, error) {
+	if r.err != nil {
+		return nil, false, r.err
+	}
+	return entries, true, nil
+}
+
 func TestRecordPaymentMovementCreatesBalancedEntries(t *testing.T) {
 	svc := NewLedgerService(fakeLedgerRepository{})
 
@@ -73,6 +80,38 @@ func TestRecordPaymentMovementRejectsInvalidRequest(t *testing.T) {
 	})
 	if !errors.Is(err, ErrValidation) {
 		t.Fatalf("RecordPaymentMovement() error = %v, want ErrValidation", err)
+	}
+}
+
+func TestRecordPaymentMovementOnceCreatesBalancedEntries(t *testing.T) {
+	svc := NewLedgerService(fakeLedgerRepository{})
+
+	entries, processed, err := svc.RecordPaymentMovementOnce(context.Background(), "5de6b73e-1c90-4597-84a8-2d4bf34be7f8", "payment.created", model.PaymentMovementRequest{
+		PaymentID:   "payment-1",
+		AmountCents: 1299,
+		Currency:    "USD",
+	})
+	if err != nil {
+		t.Fatalf("RecordPaymentMovementOnce() error = %v", err)
+	}
+	if !processed {
+		t.Fatalf("processed = false, want true")
+	}
+	if err := ValidateBalanced(entries); err != nil {
+		t.Fatalf("ValidateBalanced() error = %v", err)
+	}
+}
+
+func TestRecordPaymentMovementOnceRejectsInvalidEventID(t *testing.T) {
+	svc := NewLedgerService(fakeLedgerRepository{})
+
+	_, _, err := svc.RecordPaymentMovementOnce(context.Background(), "not-a-uuid", "payment.created", model.PaymentMovementRequest{
+		PaymentID:   "payment-1",
+		AmountCents: 1299,
+		Currency:    "USD",
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("RecordPaymentMovementOnce() error = %v, want ErrValidation", err)
 	}
 }
 
