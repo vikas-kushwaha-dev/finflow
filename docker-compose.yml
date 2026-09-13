@@ -89,6 +89,32 @@ services:
       retries: 10
     restart: unless-stopped
 
+  gateway-service:
+    build:
+      context: .
+      dockerfile: services/gateway-service/Dockerfile
+    container_name: finflow-gateway-service
+    environment:
+      APP_ENV: local
+      GATEWAY_HTTP_ADDR: :8088
+      API_KEY: local-dev-api-key-change-me
+      MAX_REQUEST_BODY_BYTES: 1048576
+      PAYMENT_SERVICE_URL: http://payment-service:8080
+      LEDGER_SERVICE_URL: http://ledger-service:8081
+      GATEWAY_RATE_LIMIT_REQUESTS: 120
+      GATEWAY_RATE_LIMIT_WINDOW: 1m
+    ports:
+      - "8088:8088"
+    depends_on:
+      payment-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/health >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   outbox-publisher:
     build:
       context: .

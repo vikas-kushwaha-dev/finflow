@@ -8,4 +8,6 @@ services/payment-service/*.exe
 services/payment-service/*.test
 services/ledger-service/*.exe
 services/ledger-service/*.test
+services/gateway-service/*.exe
+services/gateway-service/*.test
 tmp

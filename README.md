@@ -14,6 +14,7 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - one-shot migration container
 - SQL migration runner for the `payments` table
 - Ledger service foundation
+- API gateway service
 - Double-entry ledger rules
 - Ledger account and entry migrations
 - Kafka local infrastructure
@@ -22,6 +23,7 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - payment event schemas for `payment.created` and `payment.status_changed`
 - ledger payment event consumer
 - idempotent ledger event consumption
+- centralized gateway authentication, request logging, and rate limiting
 - Repository, service, handler, model, config, and database packages
 - `GET /health`
 - `GET /ready`
@@ -78,12 +80,18 @@ Runtime metrics are exposed as JSON:
 curl http://localhost:8080/metrics
 ```
 
+The gateway is available on port `8088` and is the preferred client-facing entry point:
+
+```bash
+curl http://localhost:8088/health
+```
+
 Kafka is included in Docker Compose for local event publishing. The payment service records events in `outbox_events`, the outbox publisher sends them to the `finflow.payment.events` topic, and the ledger consumer creates balanced ledger entries from `payment.created` events.
 
 Create a payment:
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/payments \
+curl -X POST http://localhost:8088/api/v1/payments \
   -H "Content-Type: application/json" \
   -H "X-API-Key: local-dev-api-key-change-me" \
   -H "Idempotency-Key: demo-key-001" \
@@ -97,14 +105,14 @@ If the same `Idempotency-Key` is reused with different payment details, the API 
 Retrieve a payment:
 
 ```bash
-curl http://localhost:8080/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8 \
+curl http://localhost:8088/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8 \
   -H "X-API-Key: local-dev-api-key-change-me"
 ```
 
 Update payment status:
 
 ```bash
-curl -X PATCH http://localhost:8080/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8/status \
+curl -X PATCH http://localhost:8088/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8/status \
   -H "Content-Type: application/json" \
   -H "X-API-Key: local-dev-api-key-change-me" \
   -d "{\"status\":\"succeeded\"}"
@@ -124,6 +132,12 @@ From `services/ledger-service`:
 go test ./...
 ```
 
+From `services/gateway-service`:
+
+```bash
+go test ./...
+```
+
 Run PostgreSQL integration tests after starting Docker Compose:
 
 ```bash
@@ -133,7 +147,7 @@ go test ./internal/repository
 
 ## API
 
-Payment endpoints require an API key:
+Payment endpoints require an API key. Send API requests through the gateway on `localhost:8088`:
 
 ```bash
 X-API-Key: local-dev-api-key-change-me
@@ -260,10 +274,9 @@ Invalid transitions return:
 
 ## Next milestone
 
-Milestone 12 should add the API gateway:
+Milestone 13 should add the ledger HTTP API:
 
-- route requests to payment and ledger services
-- centralize authentication
-- add gateway request logging
-- add basic rate limiting
-- add gateway tests
+- expose ledger account balances
+- expose ledger entries by payment reference
+- connect the gateway ledger routes to real read endpoints
+- add API and repository tests
