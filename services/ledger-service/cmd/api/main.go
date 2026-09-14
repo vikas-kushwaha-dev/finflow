@@ -13,12 +13,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/vikas-kushwaha-dev/finflow/services/gateway-service/internal/config"
-	"github.com/vikas-kushwaha-dev/finflow/services/gateway-service/internal/handler"
-	"github.com/vikas-kushwaha-dev/finflow/services/gateway-service/internal/observability"
-	"github.com/vikas-kushwaha-dev/finflow/services/gateway-service/internal/proxy"
-	"github.com/vikas-kushwaha-dev/finflow/services/gateway-service/internal/ratelimit"
-	"github.com/vikas-kushwaha-dev/finflow/services/gateway-service/internal/security"
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/config"
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/database"
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/handler"
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/observability"
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/repository"
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/security"
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/service"
 )
 
 func main() {
@@ -31,23 +32,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	paymentProxy, err := proxy.New(cfg.PaymentServiceURL, "/api/v1", logger)
-	if err != nil {
-		logger.Error("payment proxy invalid", "error", err)
-		os.Exit(1)
-	}
-
-	ledgerProxy, err := proxy.New(cfg.LedgerServiceURL, "", logger)
-	if err != nil {
-		logger.Error("ledger proxy invalid", "error", err)
-		os.Exit(1)
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	pool, err := database.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("database connection failed", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	ledgerRepository := repository.NewPostgresLedgerRepository(pool)
+	ledgerService := service.NewLedgerService(ledgerRepository)
+	ledgerHandler := handler.NewLedgerHandler(ledgerService)
 	metrics := observability.NewMetrics(time.Now())
-	limiter := ratelimit.New(cfg.RateLimitRequests, cfg.RateLimitWindow)
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -64,18 +62,29 @@ func main() {
 		})
 	})
 
+	router.Get("/ready", func(w http.ResponseWriter, r *http.Request) {
+		readyCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		if err := pool.Ping(readyCtx); err != nil {
+			handler.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{
+				"status": "not_ready",
+				"error":  "database unavailable",
+			})
+			return
+		}
+
+		handler.WriteJSON(w, http.StatusOK, map[string]string{
+			"status": "ready",
+		})
+	})
+
 	router.Get("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		handler.WriteJSON(w, http.StatusOK, metrics.Snapshot(time.Now()))
 	})
 
 	router.Route("/api/v1", func(r chi.Router) {
-		r.Use(security.APIKey(cfg.APIKey))
-		r.Use(limiter.Middleware)
-		r.Use(security.MaxBodyBytes(cfg.MaxBodyBytes))
-		r.Handle("/payments", paymentProxy)
-		r.Handle("/payments/*", paymentProxy)
-		r.Handle("/ledger", ledgerProxy)
-		r.Handle("/ledger/*", ledgerProxy)
+		ledgerHandler.RegisterRoutes(r)
 	})
 
 	server := &http.Server{
@@ -85,7 +94,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("gateway listening", "addr", cfg.HTTPAddr)
+		logger.Info("ledger service listening", "addr", cfg.HTTPAddr)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("http server failed", "error", err)
 			os.Exit(1)

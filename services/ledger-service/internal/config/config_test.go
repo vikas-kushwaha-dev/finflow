@@ -8,6 +8,7 @@ import (
 func TestConfigValidateAcceptsValidConfig(t *testing.T) {
 	cfg := Config{
 		AppEnv:             "test",
+		HTTPAddr:           ":8081",
 		DatabaseURL:        "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable",
 		KafkaBrokers:       []string{"localhost:9092"},
 		PaymentEventsTopic: "finflow.payment.events",

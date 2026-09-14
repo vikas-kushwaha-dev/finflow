@@ -60,6 +60,19 @@ func (s *LedgerService) RecordPaymentMovementOnce(ctx context.Context, eventID s
 	return created, processed, nil
 }
 
+func (s *LedgerService) ListBalances(ctx context.Context) ([]model.Balance, error) {
+	return s.repository.ListBalances(ctx)
+}
+
+func (s *LedgerService) ListEntriesByPaymentID(ctx context.Context, paymentID string) ([]model.Entry, error) {
+	paymentID = strings.TrimSpace(paymentID)
+	if paymentID == "" {
+		return nil, ErrValidation
+	}
+
+	return s.repository.ListEntriesByReference(ctx, "payment", paymentID)
+}
+
 func (s *LedgerService) buildPaymentMovement(ctx context.Context, request model.PaymentMovementRequest) ([]model.Entry, error) {
 	request.Currency = strings.ToUpper(strings.TrimSpace(request.Currency))
 	request.PaymentID = strings.TrimSpace(request.PaymentID)

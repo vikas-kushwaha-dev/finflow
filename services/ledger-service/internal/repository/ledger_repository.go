@@ -10,4 +10,6 @@ type LedgerRepository interface {
 	EnsureAccount(ctx context.Context, name string, currency string, normalBalance model.Direction) (model.Account, error)
 	CreateTransaction(ctx context.Context, entries []model.Entry) ([]model.Entry, error)
 	CreateTransactionOnce(ctx context.Context, eventID string, eventType string, aggregateID string, entries []model.Entry) ([]model.Entry, bool, error)
+	ListBalances(ctx context.Context) ([]model.Balance, error)
+	ListEntriesByReference(ctx context.Context, referenceType string, referenceID string) ([]model.Entry, error)
 }

@@ -29,6 +29,14 @@ type Entry struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+type Balance struct {
+	AccountID   string    `json:"account_id"`
+	AccountName string    `json:"account_name"`
+	Currency    string    `json:"currency"`
+	AmountCents int64     `json:"amount_cents"`
+	AsOf        time.Time `json:"as_of"`
+}
+
 type PaymentMovementRequest struct {
 	PaymentID   string
 	AmountCents int64

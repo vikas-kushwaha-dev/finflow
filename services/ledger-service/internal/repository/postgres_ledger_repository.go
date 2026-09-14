@@ -102,6 +102,89 @@ ON CONFLICT (event_id) DO NOTHING`
 	return created, true, nil
 }
 
+func (r *PostgresLedgerRepository) ListBalances(ctx context.Context) ([]model.Balance, error) {
+	const query = `
+SELECT
+	a.id,
+	a.name,
+	a.currency,
+	COALESCE(SUM(CASE
+		WHEN e.direction = a.normal_balance THEN e.amount_cents
+		ELSE -e.amount_cents
+	END), 0) AS amount_cents,
+	now() AS as_of
+FROM ledger_accounts a
+LEFT JOIN ledger_entries e ON e.account_id = a.id
+GROUP BY a.id, a.name, a.currency
+ORDER BY a.name, a.currency`
+
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list ledger balances: %w", err)
+	}
+	defer rows.Close()
+
+	balances := []model.Balance{}
+	for rows.Next() {
+		var balance model.Balance
+		if err := rows.Scan(
+			&balance.AccountID,
+			&balance.AccountName,
+			&balance.Currency,
+			&balance.AmountCents,
+			&balance.AsOf,
+		); err != nil {
+			return nil, fmt.Errorf("scan ledger balance: %w", err)
+		}
+		balances = append(balances, balance)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ledger balances: %w", err)
+	}
+
+	return balances, nil
+}
+
+func (r *PostgresLedgerRepository) ListEntriesByReference(ctx context.Context, referenceType string, referenceID string) ([]model.Entry, error) {
+	const query = `
+SELECT id, transaction_id, account_id, direction, amount_cents, currency, reference_type, reference_id, created_at
+FROM ledger_entries
+WHERE reference_type = $1 AND reference_id = $2
+ORDER BY created_at, id`
+
+	rows, err := r.pool.Query(ctx, query, referenceType, referenceID)
+	if err != nil {
+		return nil, fmt.Errorf("list ledger entries by reference: %w", err)
+	}
+	defer rows.Close()
+
+	entries := []model.Entry{}
+	for rows.Next() {
+		var entry model.Entry
+		if err := rows.Scan(
+			&entry.ID,
+			&entry.TransactionID,
+			&entry.AccountID,
+			&entry.Direction,
+			&entry.AmountCents,
+			&entry.Currency,
+			&entry.ReferenceType,
+			&entry.ReferenceID,
+			&entry.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan ledger entry: %w", err)
+		}
+		entries = append(entries, entry)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ledger entries: %w", err)
+	}
+
+	return entries, nil
+}
+
 func insertEntry(ctx context.Context, tx pgx.Tx, entry model.Entry) (model.Entry, error) {
 	const query = `
 INSERT INTO ledger_entries (

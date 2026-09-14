@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	AppEnv             string
+	HTTPAddr           string
 	DatabaseURL        string
 	KafkaBrokers       []string
 	PaymentEventsTopic string
@@ -21,6 +22,7 @@ var ErrInvalidConfig = errors.New("invalid config")
 func Load() (Config, error) {
 	cfg := Config{
 		AppEnv:             getEnv("APP_ENV", "local"),
+		HTTPAddr:           getEnv("LEDGER_HTTP_ADDR", ":8081"),
 		DatabaseURL:        getEnv("DATABASE_URL", "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable"),
 		KafkaBrokers:       parseCSVEnv("KAFKA_BROKERS", "localhost:9092"),
 		PaymentEventsTopic: getEnv("PAYMENT_EVENTS_TOPIC", "finflow.payment.events"),
@@ -39,6 +41,9 @@ func (c Config) Validate() error {
 
 	if strings.TrimSpace(c.AppEnv) == "" {
 		problems = append(problems, "APP_ENV is required")
+	}
+	if strings.TrimSpace(c.HTTPAddr) == "" {
+		problems = append(problems, "LEDGER_HTTP_ADDR is required")
 	}
 	if strings.TrimSpace(c.DatabaseURL) == "" {
 		problems = append(problems, "DATABASE_URL is required")

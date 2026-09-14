@@ -89,6 +89,32 @@ services:
       retries: 10
     restart: unless-stopped
 
+  ledger-service:
+    build:
+      context: .
+      dockerfile: services/ledger-service/Dockerfile
+    container_name: finflow-ledger-service
+    environment:
+      APP_ENV: local
+      LEDGER_HTTP_ADDR: :8081
+      DATABASE_URL: postgres://finflow:finflow@postgres:5432/finflow?sslmode=disable
+      KAFKA_BROKERS: kafka:9092
+      PAYMENT_EVENTS_TOPIC: finflow.payment.events
+      LEDGER_CONSUMER_GROUP_ID: ledger-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/ready >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   gateway-service:
     build:
       context: .
@@ -106,6 +132,8 @@ services:
     ports:
       - "8088:8088"
     depends_on:
+      ledger-service:
+        condition: service_healthy
       payment-service:
         condition: service_healthy
     healthcheck:

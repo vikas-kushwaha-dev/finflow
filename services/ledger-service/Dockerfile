@@ -7,6 +7,7 @@ RUN go mod download
 
 COPY services/ledger-service ./
 
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/payment-consumer ./cmd/payment-consumer
 
 FROM alpine:3.22
@@ -15,9 +16,9 @@ RUN addgroup -S finflow && adduser -S finflow -G finflow
 
 WORKDIR /app
 
+COPY --from=build /out/api /app/api
 COPY --from=build /out/payment-consumer /app/payment-consumer
 
 USER finflow
 
-CMD ["/app/payment-consumer"]
-
+CMD ["/app/api"]

@@ -14,6 +14,7 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - one-shot migration container
 - SQL migration runner for the `payments` table
 - Ledger service foundation
+- Ledger HTTP API
 - API gateway service
 - Double-entry ledger rules
 - Ledger account and entry migrations
@@ -28,6 +29,8 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - `GET /health`
 - `GET /ready`
 - `GET /metrics`
+- `GET /api/v1/ledger/balances`
+- `GET /api/v1/ledger/payments/{payment_id}/entries`
 - `POST /api/v1/payments`
 - `GET /api/v1/payments/{id}`
 - `PATCH /api/v1/payments/{id}/status`
@@ -86,6 +89,8 @@ The gateway is available on port `8088` and is the preferred client-facing entry
 curl http://localhost:8088/health
 ```
 
+The ledger service exposes internal health/readiness on port `8081`, while ledger API reads are available through the gateway.
+
 Kafka is included in Docker Compose for local event publishing. The payment service records events in `outbox_events`, the outbox publisher sends them to the `finflow.payment.events` topic, and the ledger consumer creates balanced ledger entries from `payment.created` events.
 
 Create a payment:
@@ -116,6 +121,20 @@ curl -X PATCH http://localhost:8088/api/v1/payments/5de6b73e-1c90-4597-84a8-2d4b
   -H "Content-Type: application/json" \
   -H "X-API-Key: local-dev-api-key-change-me" \
   -d "{\"status\":\"succeeded\"}"
+```
+
+List ledger balances:
+
+```bash
+curl http://localhost:8088/api/v1/ledger/balances \
+  -H "X-API-Key: local-dev-api-key-change-me"
+```
+
+List ledger entries for a payment:
+
+```bash
+curl http://localhost:8088/api/v1/ledger/payments/5de6b73e-1c90-4597-84a8-2d4bf34be7f8/entries \
+  -H "X-API-Key: local-dev-api-key-change-me"
 ```
 
 ## Test
@@ -272,11 +291,51 @@ Invalid transitions return:
 }
 ```
 
+### `GET /api/v1/ledger/balances`
+
+Returns current ledger balances grouped by account and currency:
+
+```json
+{
+  "balances": [
+    {
+      "account_id": "account-id",
+      "account_name": "finflow_cash",
+      "currency": "USD",
+      "amount_cents": 1299,
+      "as_of": "2026-09-14T12:00:00Z"
+    }
+  ]
+}
+```
+
+### `GET /api/v1/ledger/payments/{payment_id}/entries`
+
+Returns ledger entries created for one payment reference:
+
+```json
+{
+  "entries": [
+    {
+      "id": "entry-id",
+      "transaction_id": "transaction-id",
+      "account_id": "account-id",
+      "direction": "debit",
+      "amount_cents": 1299,
+      "currency": "USD",
+      "reference_type": "payment",
+      "reference_id": "payment-id",
+      "created_at": "2026-09-14T12:00:00Z"
+    }
+  ]
+}
+```
+
 ## Next milestone
 
-Milestone 13 should add the ledger HTTP API:
+Milestone 14 should add service-to-service hardening:
 
-- expose ledger account balances
-- expose ledger entries by payment reference
-- connect the gateway ledger routes to real read endpoints
-- add API and repository tests
+- remove direct external dependency on payment-service API keys
+- add internal service credentials between gateway and services
+- add stricter proxy error responses
+- add end-to-end Docker smoke checks

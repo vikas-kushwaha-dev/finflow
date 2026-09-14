@@ -10,7 +10,9 @@ import (
 )
 
 type fakeLedgerRepository struct {
-	err error
+	err      error
+	balances []model.Balance
+	entries  []model.Entry
 }
 
 func (r fakeLedgerRepository) EnsureAccount(ctx context.Context, name string, currency string, normalBalance model.Direction) (model.Account, error) {
@@ -39,6 +41,20 @@ func (r fakeLedgerRepository) CreateTransactionOnce(ctx context.Context, eventID
 		return nil, false, r.err
 	}
 	return entries, true, nil
+}
+
+func (r fakeLedgerRepository) ListBalances(ctx context.Context) ([]model.Balance, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.balances, nil
+}
+
+func (r fakeLedgerRepository) ListEntriesByReference(ctx context.Context, referenceType string, referenceID string) ([]model.Entry, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.entries, nil
 }
 
 func TestRecordPaymentMovementCreatesBalancedEntries(t *testing.T) {
@@ -112,6 +128,30 @@ func TestRecordPaymentMovementOnceRejectsInvalidEventID(t *testing.T) {
 	})
 	if !errors.Is(err, ErrValidation) {
 		t.Fatalf("RecordPaymentMovementOnce() error = %v, want ErrValidation", err)
+	}
+}
+
+func TestListBalancesReturnsRepositoryBalances(t *testing.T) {
+	expected := []model.Balance{
+		{AccountName: "finflow_cash", Currency: "USD", AmountCents: 1299},
+	}
+	svc := NewLedgerService(fakeLedgerRepository{balances: expected})
+
+	balances, err := svc.ListBalances(context.Background())
+	if err != nil {
+		t.Fatalf("ListBalances() error = %v", err)
+	}
+	if len(balances) != 1 || balances[0].AccountName != expected[0].AccountName {
+		t.Fatalf("ListBalances() = %+v, want %+v", balances, expected)
+	}
+}
+
+func TestListEntriesByPaymentIDRejectsBlankPaymentID(t *testing.T) {
+	svc := NewLedgerService(fakeLedgerRepository{})
+
+	_, err := svc.ListEntriesByPaymentID(context.Background(), " ")
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("ListEntriesByPaymentID() error = %v, want ErrValidation", err)
 	}
 }
 
