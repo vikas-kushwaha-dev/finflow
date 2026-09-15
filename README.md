@@ -165,6 +165,14 @@ $env:INTEGRATION_DATABASE_URL="postgres://finflow:finflow@localhost:5432/finflow
 go test ./internal/repository
 ```
 
+Run the Docker smoke test from the project root:
+
+```powershell
+.\scripts\smoke.ps1
+```
+
+The smoke test starts Docker Compose, creates a payment through the gateway, waits for ledger entries, checks that the entries balance, and confirms direct payment/ledger API calls fail without the internal service token.
+
 ## API
 
 Client API requests require an API key at the gateway. Send API requests through the gateway on `localhost:8088`:
@@ -336,9 +344,9 @@ Returns ledger entries created for one payment reference:
 
 ## Next milestone
 
-Milestone 15 should add end-to-end Docker smoke testing:
+Milestone 16 should add CI workflow automation:
 
-- create repeatable smoke scripts for Docker Compose
-- verify payment creation through the gateway
-- verify outbox-to-ledger flow
-- document troubleshooting for Docker Desktop and local ports
+- run Go tests for all services
+- run command builds for all services
+- validate Docker Compose config
+- document where smoke tests fit into release checks
