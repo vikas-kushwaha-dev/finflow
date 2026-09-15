@@ -11,7 +11,7 @@ func TestConfigValidateAcceptsValidConfig(t *testing.T) {
 		HTTPAddr:           ":8080",
 		DatabaseURL:        "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable",
 		MigrationsDir:      "../../migrations",
-		APIKey:             "test-key",
+		InternalToken:      "internal-secret",
 		MaxBodyBytes:       1024,
 		KafkaBrokers:       []string{"localhost:9092"},
 		PaymentEventsTopic: "finflow.payment.events",
@@ -37,7 +37,7 @@ func TestConfigValidateRejectsInvalidDatabaseURL(t *testing.T) {
 		HTTPAddr:           ":8080",
 		DatabaseURL:        "not-a-url",
 		MigrationsDir:      "../../migrations",
-		APIKey:             "test-key",
+		InternalToken:      "internal-secret",
 		MaxBodyBytes:       1024,
 		KafkaBrokers:       []string{"localhost:9092"},
 		PaymentEventsTopic: "finflow.payment.events",
@@ -49,7 +49,7 @@ func TestConfigValidateRejectsInvalidDatabaseURL(t *testing.T) {
 	}
 }
 
-func TestConfigValidateRejectsMissingAPIKey(t *testing.T) {
+func TestConfigValidateRejectsMissingInternalToken(t *testing.T) {
 	cfg := Config{
 		AppEnv:             "test",
 		HTTPAddr:           ":8080",
@@ -72,7 +72,7 @@ func TestConfigValidateRejectsInvalidBodyLimit(t *testing.T) {
 		HTTPAddr:           ":8080",
 		DatabaseURL:        "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable",
 		MigrationsDir:      "../../migrations",
-		APIKey:             "test-key",
+		InternalToken:      "internal-secret",
 		MaxBodyBytes:       0,
 		KafkaBrokers:       []string{"localhost:9092"},
 		PaymentEventsTopic: "finflow.payment.events",
@@ -90,7 +90,7 @@ func TestConfigValidateRejectsMissingKafkaConfig(t *testing.T) {
 		HTTPAddr:      ":8080",
 		DatabaseURL:   "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable",
 		MigrationsDir: "../../migrations",
-		APIKey:        "test-key",
+		InternalToken: "internal-secret",
 		MaxBodyBytes:  1024,
 	}
 

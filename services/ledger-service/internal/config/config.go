@@ -12,6 +12,7 @@ type Config struct {
 	AppEnv             string
 	HTTPAddr           string
 	DatabaseURL        string
+	InternalToken      string
 	KafkaBrokers       []string
 	PaymentEventsTopic string
 	ConsumerGroupID    string
@@ -24,6 +25,7 @@ func Load() (Config, error) {
 		AppEnv:             getEnv("APP_ENV", "local"),
 		HTTPAddr:           getEnv("LEDGER_HTTP_ADDR", ":8081"),
 		DatabaseURL:        getEnv("DATABASE_URL", "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable"),
+		InternalToken:      getEnv("INTERNAL_SERVICE_TOKEN", "local-internal-service-token-change-me"),
 		KafkaBrokers:       parseCSVEnv("KAFKA_BROKERS", "localhost:9092"),
 		PaymentEventsTopic: getEnv("PAYMENT_EVENTS_TOPIC", "finflow.payment.events"),
 		ConsumerGroupID:    getEnv("LEDGER_CONSUMER_GROUP_ID", "ledger-service"),
@@ -49,6 +51,9 @@ func (c Config) Validate() error {
 		problems = append(problems, "DATABASE_URL is required")
 	} else if parsed, err := url.Parse(c.DatabaseURL); err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		problems = append(problems, "DATABASE_URL must be a valid database URL")
+	}
+	if strings.TrimSpace(c.InternalToken) == "" {
+		problems = append(problems, "INTERNAL_SERVICE_TOKEN is required")
 	}
 	if len(c.KafkaBrokers) == 0 {
 		problems = append(problems, "KAFKA_BROKERS is required")

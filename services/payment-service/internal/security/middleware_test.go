@@ -69,6 +69,40 @@ func TestAPIKeyRejectsMissingKey(t *testing.T) {
 	}
 }
 
+func TestInternalServiceTokenAllowsExpectedHeader(t *testing.T) {
+	called := false
+	handler := InternalServiceToken("internal-secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/payments", nil)
+	req.Header.Set("X-Internal-Service-Token", "internal-secret")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+	if !called {
+		t.Fatalf("handler was not called")
+	}
+}
+
+func TestInternalServiceTokenRejectsMissingHeader(t *testing.T) {
+	handler := InternalServiceToken("internal-secret")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("handler should not be called")
+	}))
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/payments", nil))
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
 func TestHeadersAddsSecurityHeaders(t *testing.T) {
 	handler := Headers(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)

@@ -84,7 +84,7 @@ func main() {
 	})
 
 	router.Route("/api/v1", func(r chi.Router) {
-		r.Use(security.APIKey(cfg.APIKey))
+		r.Use(security.InternalServiceToken(cfg.InternalToken))
 		r.Use(security.MaxBodyBytes(cfg.MaxBodyBytes))
 		paymentHandler.RegisterRoutes(r)
 	})

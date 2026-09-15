@@ -31,13 +31,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	paymentProxy, err := proxy.New(cfg.PaymentServiceURL, "/api/v1", logger)
+	paymentProxy, err := proxy.New(cfg.PaymentServiceURL, "/api/v1", cfg.InternalToken, logger)
 	if err != nil {
 		logger.Error("payment proxy invalid", "error", err)
 		os.Exit(1)
 	}
 
-	ledgerProxy, err := proxy.New(cfg.LedgerServiceURL, "", logger)
+	ledgerProxy, err := proxy.New(cfg.LedgerServiceURL, "", cfg.InternalToken, logger)
 	if err != nil {
 		logger.Error("ledger proxy invalid", "error", err)
 		os.Exit(1)

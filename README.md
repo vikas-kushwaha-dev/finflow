@@ -25,6 +25,7 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - ledger payment event consumer
 - idempotent ledger event consumption
 - centralized gateway authentication, request logging, and rate limiting
+- internal service-token authentication from gateway to services
 - Repository, service, handler, model, config, and database packages
 - `GET /health`
 - `GET /ready`
@@ -63,7 +64,7 @@ copy .env.example .env
 docker compose up --build -d
 ```
 
-The local example API key is `local-dev-api-key-change-me`. Change `API_KEY` before using this outside local development.
+The local example API key is `local-dev-api-key-change-me`. Change `API_KEY` and `INTERNAL_SERVICE_TOKEN` before using this outside local development.
 
 Then in another terminal:
 
@@ -166,7 +167,7 @@ go test ./internal/repository
 
 ## API
 
-Payment endpoints require an API key. Send API requests through the gateway on `localhost:8088`:
+Client API requests require an API key at the gateway. Send API requests through the gateway on `localhost:8088`:
 
 ```bash
 X-API-Key: local-dev-api-key-change-me
@@ -177,6 +178,8 @@ You can also send:
 ```bash
 Authorization: Bearer local-dev-api-key-change-me
 ```
+
+The payment and ledger services require `X-Internal-Service-Token` for their `/api/v1` routes. The gateway sets this header when proxying requests, so clients should not call service ports directly.
 
 Public endpoints:
 
@@ -333,9 +336,9 @@ Returns ledger entries created for one payment reference:
 
 ## Next milestone
 
-Milestone 14 should add service-to-service hardening:
+Milestone 15 should add end-to-end Docker smoke testing:
 
-- remove direct external dependency on payment-service API keys
-- add internal service credentials between gateway and services
-- add stricter proxy error responses
-- add end-to-end Docker smoke checks
+- create repeatable smoke scripts for Docker Compose
+- verify payment creation through the gateway
+- verify outbox-to-ledger flow
+- document troubleshooting for Docker Desktop and local ports

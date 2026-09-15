@@ -44,6 +44,24 @@ func APIKey(expectedKey string) func(http.Handler) http.Handler {
 	}
 }
 
+func InternalServiceToken(expectedToken string) func(http.Handler) http.Handler {
+	expectedHash := sha256.Sum256([]byte(expectedToken))
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			providedToken := strings.TrimSpace(r.Header.Get("X-Internal-Service-Token"))
+			providedHash := sha256.Sum256([]byte(providedToken))
+
+			if providedToken == "" || subtle.ConstantTimeCompare(providedHash[:], expectedHash[:]) != 1 {
+				writeError(w, r, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func MaxBodyBytes(limit int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

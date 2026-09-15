@@ -19,6 +19,7 @@ type Config struct {
 	AppEnv            string
 	HTTPAddr          string
 	APIKey            string
+	InternalToken     string
 	MaxBodyBytes      int64
 	PaymentServiceURL string
 	LedgerServiceURL  string
@@ -50,6 +51,7 @@ func Load() (Config, error) {
 		AppEnv:            getEnv("APP_ENV", "local"),
 		HTTPAddr:          getEnv("GATEWAY_HTTP_ADDR", ":8088"),
 		APIKey:            getEnv("API_KEY", "local-dev-api-key-change-me"),
+		InternalToken:     getEnv("INTERNAL_SERVICE_TOKEN", "local-internal-service-token-change-me"),
 		MaxBodyBytes:      maxBodyBytes,
 		PaymentServiceURL: getEnv("PAYMENT_SERVICE_URL", "http://localhost:8080"),
 		LedgerServiceURL:  getEnv("LEDGER_SERVICE_URL", "http://localhost:8081"),
@@ -75,6 +77,9 @@ func (c Config) Validate() error {
 	}
 	if strings.TrimSpace(c.APIKey) == "" {
 		problems = append(problems, "API_KEY is required")
+	}
+	if strings.TrimSpace(c.InternalToken) == "" {
+		problems = append(problems, "INTERNAL_SERVICE_TOKEN is required")
 	}
 	if c.MaxBodyBytes <= 0 {
 		problems = append(problems, "MAX_REQUEST_BODY_BYTES must be greater than zero")

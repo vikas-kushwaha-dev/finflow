@@ -84,6 +84,7 @@ func main() {
 	})
 
 	router.Route("/api/v1", func(r chi.Router) {
+		r.Use(security.InternalServiceToken(cfg.InternalToken))
 		ledgerHandler.RegisterRoutes(r)
 	})
 

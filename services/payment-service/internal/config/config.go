@@ -17,7 +17,7 @@ type Config struct {
 	HTTPAddr           string
 	DatabaseURL        string
 	MigrationsDir      string
-	APIKey             string
+	InternalToken      string
 	MaxBodyBytes       int64
 	KafkaBrokers       []string
 	PaymentEventsTopic string
@@ -33,7 +33,7 @@ func Load() (Config, error) {
 		HTTPAddr:           getEnv("HTTP_ADDR", ":8080"),
 		DatabaseURL:        getEnv("DATABASE_URL", "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable"),
 		MigrationsDir:      getEnv("MIGRATIONS_DIR", "../../migrations"),
-		APIKey:             getEnv("API_KEY", "local-dev-api-key-change-me"),
+		InternalToken:      getEnv("INTERNAL_SERVICE_TOKEN", "local-internal-service-token-change-me"),
 		KafkaBrokers:       parseCSVEnv("KAFKA_BROKERS", "localhost:9092"),
 		PaymentEventsTopic: getEnv("PAYMENT_EVENTS_TOPIC", "finflow.payment.events"),
 	}
@@ -72,8 +72,8 @@ func (c Config) Validate() error {
 		problems = append(problems, "MIGRATIONS_DIR is required")
 	}
 
-	if strings.TrimSpace(c.APIKey) == "" {
-		problems = append(problems, "API_KEY is required")
+	if strings.TrimSpace(c.InternalToken) == "" {
+		problems = append(problems, "INTERNAL_SERVICE_TOKEN is required")
 	}
 
 	if c.MaxBodyBytes <= 0 {
