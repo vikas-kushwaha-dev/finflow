@@ -10,3 +10,4 @@ vendor/
 .gotmp/
 docs/
 details/
+dist/

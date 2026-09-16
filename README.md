@@ -51,6 +51,7 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - unit tests for service and handler behavior
 - GitHub Actions CI for tests, command builds, and Docker Compose validation
 - Kubernetes manifests for APIs, workers, configuration, and migrations
+- tagged release automation with image scanning and digest-pinned manifests
 
 ## Requirements
 
@@ -186,6 +187,12 @@ GitHub Actions runs unit tests and command builds for all three Go modules, vali
 ## Kubernetes
 
 The deployment foundation is in `infrastructure/kubernetes`. It runs the three APIs and two workers in Kubernetes while treating PostgreSQL and Kafka as externally managed dependencies. See `infrastructure/kubernetes/README.md` for image, Secret, migration, and deployment instructions.
+
+## Release
+
+Push a semantic version tag such as `v1.0.0` to start the release workflow. Releases are gated by CI and container vulnerability scanning, publish multi-architecture images to GitHub Container Registry, and attach digest-pinned Kubernetes manifests to the GitHub release.
+
+The release sequence runs the generated migration Job before applying the application manifests. After rollout, use `scripts/smoke.ps1 -SkipComposeUp -GatewayOnly` against the public gateway. Full instructions and rollback constraints are documented in `infrastructure/kubernetes/README.md`.
 
 ## API
 
@@ -358,10 +365,10 @@ Returns ledger entries created for one payment reference:
 
 ## Next milestone
 
-Milestone 18 should add container image publishing and release automation:
+Milestone 19 should secure Kafka transport for external production brokers:
 
-- build and publish versioned service images
-- generate immutable image tags from Git commits and release tags
-- scan images for known vulnerabilities
-- update Kubernetes release image references
-- define a controlled migration and smoke-test release sequence
+- TLS configuration for Kafka producers and consumers
+- SASL authentication with credentials sourced from environment variables and Kubernetes Secrets
+- configuration validation and redacted logging
+- unit tests for secure and plaintext local configurations
+- updated Docker Compose and Kubernetes deployment settings

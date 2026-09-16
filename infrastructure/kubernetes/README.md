@@ -12,7 +12,7 @@ These manifests deploy the FinFlow application processes only. PostgreSQL and Ka
 
 Update `configmap.yaml` with the external Kafka broker addresses. The internal payment and ledger URLs already use Kubernetes Service discovery.
 
-Set immutable release image references before deploying. For example:
+For manual deployments, set explicit image references before deploying. Tagged releases generate digest-pinned manifests automatically and are preferred. To edit the development manifests manually:
 
 ```powershell
 kubectl kustomize infrastructure/kubernetes
@@ -25,6 +25,8 @@ kustomize edit set image finflow/payment-service=registry.example.com/finflow/pa
 ```
 
 Do not commit credentials. Create the required Secret directly in the cluster or through the production secret manager:
+
+If the published GHCR packages are private, configure an `imagePullSecret` on the `finflow` namespace's default ServiceAccount before rollout.
 
 ```powershell
 kubectl create namespace finflow --dry-run=client -o yaml | kubectl apply -f -
@@ -60,3 +62,32 @@ The gateway Service uses `LoadBalancer`. Payment and ledger Services use `Cluste
 The worker Deployments start with one replica. Increase consumer replicas only after considering Kafka partition count. Keep the outbox publisher at one replica until its database claim behavior has been load-tested for concurrent publishers.
 
 The current Kafka client configuration supports broker addresses but does not yet configure SASL or TLS. Do not connect these workloads to a production Kafka cluster until transport authentication is implemented.
+
+## Tagged releases
+
+Pushing a semantic version tag such as `v1.0.0` starts `.github/workflows/release.yml`. The workflow:
+
+1. Runs the complete CI workflow.
+2. Builds each image and blocks publishing when Trivy finds a fixed HIGH or CRITICAL vulnerability.
+3. Publishes `linux/amd64` and `linux/arm64` images to GitHub Container Registry with version and commit tags.
+4. Records SBOM and provenance data.
+5. Creates a GitHub release containing application and migration manifests pinned to immutable image digests.
+
+Use the generated release assets in this order:
+
+```powershell
+kubectl apply -f infrastructure/kubernetes/namespace.yaml
+kubectl -n finflow apply -f infrastructure/kubernetes/configmap.yaml
+
+# Create or update finflow-secrets through the cluster's secret manager.
+
+kubectl -n finflow delete job finflow-migrate --ignore-not-found
+kubectl create -f finflow-migration.yaml
+kubectl -n finflow wait --for=condition=complete job/finflow-migrate --timeout=5m
+kubectl apply -f finflow-kubernetes.yaml
+kubectl -n finflow rollout status deployment/gateway --timeout=5m
+kubectl -n finflow rollout status deployment/payment-service --timeout=5m
+kubectl -n finflow rollout status deployment/ledger-service --timeout=5m
+```
+
+After the rollout, run the smoke test against the public gateway with `-SkipComposeUp -GatewayOnly`. Rollback should use the previous release's digest-pinned `finflow-kubernetes.yaml`; database migrations must be designed to remain backward compatible because automatic schema rollback is not provided.

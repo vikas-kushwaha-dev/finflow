@@ -49,6 +49,21 @@ try {
     kubectl kustomize infrastructure/kubernetes/migration | Out-Null
     Assert-CommandSucceeded "Kubernetes migration manifest rendering failed"
 
+    Write-Step "validating release manifest rendering"
+    $gatewayDigest = "sha256:" + ("a" * 64)
+    $paymentDigest = "sha256:" + ("b" * 64)
+    $ledgerDigest = "sha256:" + ("c" * 64)
+    & "$PSScriptRoot/render-release-manifests.ps1" `
+        -Registry "ghcr.io/vikas-kushwaha-dev" `
+        -GatewayDigest $gatewayDigest `
+        -PaymentDigest $paymentDigest `
+        -LedgerDigest $ledgerDigest `
+        -OutputDirectory "dist/check-release"
+
+    if (Select-String -Path "dist/check-release/*.yaml" -Pattern "finflow/.+-service:dev" -Quiet) {
+        throw "development image reference remained in release manifests"
+    }
+
     Write-Step "all checks passed"
 }
 finally {

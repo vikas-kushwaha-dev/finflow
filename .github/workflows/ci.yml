@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -27,10 +28,10 @@ jobs:
         working-directory: ${{ matrix.service }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: ${{ matrix.service }}/go.mod
           cache-dependency-path: ${{ matrix.service }}/go.sum
@@ -46,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Validate Docker Compose
         run: docker compose config --quiet
@@ -58,3 +59,20 @@ jobs:
         run: |
           kubectl kustomize infrastructure/kubernetes > /dev/null
           kubectl kustomize infrastructure/kubernetes/migration > /dev/null
+
+      - name: Validate release manifest renderer
+        shell: pwsh
+        run: |
+          $gatewayDigest = "sha256:" + ("a" * 64)
+          $paymentDigest = "sha256:" + ("b" * 64)
+          $ledgerDigest = "sha256:" + ("c" * 64)
+          ./scripts/render-release-manifests.ps1 `
+            -Registry "ghcr.io/vikas-kushwaha-dev" `
+            -GatewayDigest $gatewayDigest `
+            -PaymentDigest $paymentDigest `
+            -LedgerDigest $ledgerDigest `
+            -OutputDirectory "dist/ci-release"
+
+          if (Select-String -Path "dist/ci-release/*.yaml" -Pattern "finflow/.+-service:dev" -Quiet) {
+            throw "development image reference remained in release manifests"
+          }

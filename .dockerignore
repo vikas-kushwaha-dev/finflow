@@ -11,3 +11,4 @@ services/ledger-service/*.test
 services/gateway-service/*.exe
 services/gateway-service/*.test
 tmp
+dist

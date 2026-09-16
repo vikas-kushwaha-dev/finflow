@@ -4,6 +4,7 @@ param(
     [string]$LedgerServiceUrl = "http://localhost:8081",
     [string]$ApiKey = "local-dev-api-key-change-me",
     [switch]$SkipComposeUp,
+    [switch]$GatewayOnly,
     [switch]$NoBuild,
     [int]$LedgerAttempts = 30,
     [int]$LedgerDelaySeconds = 2
@@ -149,8 +150,10 @@ $clientHeaders = @{
 }
 
 Wait-Healthy -Name "gateway" -Uri "$GatewayUrl/health"
-Wait-Healthy -Name "payment service" -Uri "$PaymentServiceUrl/ready"
-Wait-Healthy -Name "ledger service" -Uri "$LedgerServiceUrl/ready"
+if (-not $GatewayOnly) {
+    Wait-Healthy -Name "payment service" -Uri "$PaymentServiceUrl/ready"
+    Wait-Healthy -Name "ledger service" -Uri "$LedgerServiceUrl/ready"
+}
 
 $idempotencyKey = "smoke-$([guid]::NewGuid().ToString())"
 $paymentRequest = @{
@@ -200,7 +203,9 @@ if ($null -eq $balancesResponse.balances) {
 }
 Write-Step "ledger balances endpoint responded"
 
-Assert-Status -Name "direct payment API without internal token" -Actual (Get-HttpStatus -Uri "$PaymentServiceUrl/api/v1/payments/$($payment.id)") -Expected 401
-Assert-Status -Name "direct ledger API without internal token" -Actual (Get-HttpStatus -Uri "$LedgerServiceUrl/api/v1/ledger/balances") -Expected 401
+if (-not $GatewayOnly) {
+    Assert-Status -Name "direct payment API without internal token" -Actual (Get-HttpStatus -Uri "$PaymentServiceUrl/api/v1/payments/$($payment.id)") -Expected 401
+    Assert-Status -Name "direct ledger API without internal token" -Actual (Get-HttpStatus -Uri "$LedgerServiceUrl/api/v1/ledger/balances") -Expected 401
+}
 
 Write-Step "smoke test completed successfully"
