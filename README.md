@@ -50,6 +50,7 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - PostgreSQL integration test entry point
 - unit tests for service and handler behavior
 - GitHub Actions CI for tests, command builds, and Docker Compose validation
+- Kubernetes manifests for APIs, workers, configuration, and migrations
 
 ## Requirements
 
@@ -180,7 +181,11 @@ Run the Docker smoke test from the project root:
 
 The smoke test starts Docker Compose, creates a payment through the gateway, waits for ledger entries, checks that the entries balance, and confirms direct payment/ledger API calls fail without the internal service token.
 
-GitHub Actions runs unit tests and command builds for all three Go modules and validates the Docker Compose configuration on every push and pull request. The Docker smoke test remains a release check because it requires the full PostgreSQL, Kafka, gateway, payment, and ledger stack.
+GitHub Actions runs unit tests and command builds for all three Go modules, validates Docker Compose, and renders the Kubernetes manifests on every push and pull request. The Docker smoke test remains a release check because it requires the full PostgreSQL, Kafka, gateway, payment, and ledger stack.
+
+## Kubernetes
+
+The deployment foundation is in `infrastructure/kubernetes`. It runs the three APIs and two workers in Kubernetes while treating PostgreSQL and Kafka as externally managed dependencies. See `infrastructure/kubernetes/README.md` for image, Secret, migration, and deployment instructions.
 
 ## API
 
@@ -353,10 +358,10 @@ Returns ledger entries created for one payment reference:
 
 ## Next milestone
 
-Milestone 17 should add Kubernetes deployment foundations:
+Milestone 18 should add container image publishing and release automation:
 
-- deployment and service manifests for the gateway, payment service, and ledger service
-- separate worker deployments for the outbox publisher and ledger consumer
-- ConfigMaps and Secret references without committing real credentials
-- PostgreSQL and Kafka kept as external dependencies rather than production-style in-cluster singletons
-- deployment documentation and manifest validation
+- build and publish versioned service images
+- generate immutable image tags from Git commits and release tags
+- scan images for known vulnerabilities
+- update Kubernetes release image references
+- define a controlled migration and smoke-test release sequence

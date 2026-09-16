@@ -42,11 +42,19 @@ jobs:
         run: go build ./cmd/...
 
   compose:
-    name: Validate Docker Compose
+    name: Validate deployment configuration
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Validate configuration
+      - name: Validate Docker Compose
         run: docker compose config --quiet
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Render Kubernetes manifests
+        run: |
+          kubectl kustomize infrastructure/kubernetes > /dev/null
+          kubectl kustomize infrastructure/kubernetes/migration > /dev/null

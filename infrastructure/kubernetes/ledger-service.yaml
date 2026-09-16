@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger-service
+  labels:
+    app.kubernetes.io/name: ledger-service
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: finflow
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ledger-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ledger-service
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: finflow
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ledger-service
+          image: finflow/ledger-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+          env:
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: APP_ENV
+            - name: LEDGER_HTTP_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: LEDGER_HTTP_ADDR
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: KAFKA_BROKERS
+            - name: PAYMENT_EVENTS_TOPIC
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: PAYMENT_EVENTS_TOPIC
+            - name: LEDGER_CONSUMER_GROUP_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: LEDGER_CONSUMER_GROUP_ID
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: finflow-secrets
+                  key: database-url
+            - name: INTERNAL_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: finflow-secrets
+                  key: internal-service-token
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ledger-service
+  labels:
+    app.kubernetes.io/name: ledger-service
+    app.kubernetes.io/part-of: finflow
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ledger-service
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http

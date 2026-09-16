@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger-consumer
+  labels:
+    app.kubernetes.io/name: ledger-consumer
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: finflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ledger-consumer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ledger-consumer
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: finflow
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ledger-consumer
+          image: finflow/ledger-service:dev
+          imagePullPolicy: IfNotPresent
+          command: ["/app/payment-consumer"]
+          env:
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: APP_ENV
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: KAFKA_BROKERS
+            - name: PAYMENT_EVENTS_TOPIC
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: PAYMENT_EVENTS_TOPIC
+            - name: LEDGER_CONSUMER_GROUP_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: LEDGER_CONSUMER_GROUP_ID
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: finflow-secrets
+                  key: database-url
+            - name: INTERNAL_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: finflow-secrets
+                  key: internal-service-token
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      terminationGracePeriodSeconds: 30

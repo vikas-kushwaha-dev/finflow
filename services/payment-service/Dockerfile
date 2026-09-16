@@ -13,7 +13,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o
 
 FROM alpine:3.22
 
-RUN addgroup -S finflow && adduser -S finflow -G finflow
+RUN addgroup -S -g 10001 finflow && adduser -S -D -H -u 10001 -G finflow finflow
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ COPY --from=build /out/migrate /app/migrate
 COPY --from=build /out/outbox-publisher /app/outbox-publisher
 COPY migrations /app/migrations
 
-USER finflow
+USER 10001:10001
 
 EXPOSE 8080
 

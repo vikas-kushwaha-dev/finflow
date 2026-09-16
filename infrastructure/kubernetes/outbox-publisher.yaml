@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: outbox-publisher
+  labels:
+    app.kubernetes.io/name: outbox-publisher
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: finflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: outbox-publisher
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: outbox-publisher
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: finflow
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: outbox-publisher
+          image: finflow/payment-service:dev
+          imagePullPolicy: IfNotPresent
+          command: ["/app/outbox-publisher"]
+          env:
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: APP_ENV
+            - name: MIGRATIONS_DIR
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: MIGRATIONS_DIR
+            - name: MAX_REQUEST_BODY_BYTES
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: MAX_REQUEST_BODY_BYTES
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: KAFKA_BROKERS
+            - name: PAYMENT_EVENTS_TOPIC
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: PAYMENT_EVENTS_TOPIC
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: finflow-secrets
+                  key: database-url
+            - name: INTERNAL_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: finflow-secrets
+                  key: internal-service-token
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      terminationGracePeriodSeconds: 30

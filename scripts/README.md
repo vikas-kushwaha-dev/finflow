@@ -8,7 +8,7 @@ Run from the project root:
 .\scripts\check.ps1
 ```
 
-The script runs all Go tests, builds every service command, and validates the Docker Compose configuration. These are the same checks enforced by GitHub Actions.
+The script runs all Go tests, builds every service command, validates the Docker Compose configuration, and renders the Kubernetes manifests. These are the same checks enforced by GitHub Actions.
 
 ## Docker smoke test
 

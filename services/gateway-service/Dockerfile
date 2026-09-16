@@ -10,11 +10,11 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o
 
 FROM alpine:3.22
 
-RUN addgroup -S finflow && adduser -S finflow -G finflow
+RUN addgroup -S -g 10001 finflow && adduser -S -D -H -u 10001 -G finflow finflow
 
 WORKDIR /app
 COPY --from=build /out/api /app/api
 
-USER finflow
+USER 10001:10001
 
 CMD ["/app/api"]
