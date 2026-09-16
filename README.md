@@ -49,6 +49,7 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - lightweight JSON runtime metrics
 - PostgreSQL integration test entry point
 - unit tests for service and handler behavior
+- GitHub Actions CI for tests, command builds, and Docker Compose validation
 
 ## Requirements
 
@@ -140,6 +141,12 @@ curl http://localhost:8088/api/v1/ledger/payments/5de6b73e-1c90-4597-84a8-2d4bf3
 
 ## Test
 
+Run the same fast checks used by CI from the project root:
+
+```powershell
+.\scripts\check.ps1
+```
+
 From `services/payment-service`:
 
 ```bash
@@ -172,6 +179,8 @@ Run the Docker smoke test from the project root:
 ```
 
 The smoke test starts Docker Compose, creates a payment through the gateway, waits for ledger entries, checks that the entries balance, and confirms direct payment/ledger API calls fail without the internal service token.
+
+GitHub Actions runs unit tests and command builds for all three Go modules and validates the Docker Compose configuration on every push and pull request. The Docker smoke test remains a release check because it requires the full PostgreSQL, Kafka, gateway, payment, and ledger stack.
 
 ## API
 
@@ -344,9 +353,10 @@ Returns ledger entries created for one payment reference:
 
 ## Next milestone
 
-Milestone 16 should add CI workflow automation:
+Milestone 17 should add Kubernetes deployment foundations:
 
-- run Go tests for all services
-- run command builds for all services
-- validate Docker Compose config
-- document where smoke tests fit into release checks
+- deployment and service manifests for the gateway, payment service, and ledger service
+- separate worker deployments for the outbox publisher and ledger consumer
+- ConfigMaps and Secret references without committing real credentials
+- PostgreSQL and Kafka kept as external dependencies rather than production-style in-cluster singletons
+- deployment documentation and manifest validation

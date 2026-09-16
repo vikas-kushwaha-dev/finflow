@@ -1,5 +1,15 @@
 # FinFlow Scripts
 
+## Local CI checks
+
+Run from the project root:
+
+```powershell
+.\scripts\check.ps1
+```
+
+The script runs all Go tests, builds every service command, and validates the Docker Compose configuration. These are the same checks enforced by GitHub Actions.
+
 ## Docker smoke test
 
 Run from the project root:
@@ -17,3 +27,5 @@ To run against an already-started stack:
 ```
 
 If Docker image downloads are slow or fail, run the script again after Docker Desktop finishes pulling `postgres`, `apache/kafka`, `golang`, and `alpine` images.
+
+The smoke test is a release check rather than a pull-request CI check because it starts PostgreSQL, Kafka, and every FinFlow service. Run it before a release or after changes to cross-service behavior, event delivery, Dockerfiles, or Docker Compose wiring.
