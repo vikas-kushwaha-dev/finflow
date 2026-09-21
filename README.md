@@ -52,6 +52,7 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - GitHub Actions CI for tests, command builds, and Docker Compose validation
 - Kubernetes manifests for APIs, workers, configuration, and migrations
 - tagged release automation with image scanning and digest-pinned manifests
+- Kafka TLS, mutual TLS, and SASL authentication support
 
 ## Requirements
 
@@ -96,6 +97,8 @@ curl http://localhost:8088/health
 The ledger service exposes internal health/readiness on port `8081`, while ledger API reads are available through the gateway.
 
 Kafka is included in Docker Compose for local event publishing. The payment service records events in `outbox_events`, the outbox publisher sends them to the `finflow.payment.events` topic, and the ledger consumer creates balanced ledger entries from `payment.created` events.
+
+Local Docker Compose uses explicit plaintext Kafka settings. Kubernetes workers require TLS and SCRAM authentication, with credentials and CA certificates supplied through Kubernetes Secrets.
 
 Create a payment:
 
@@ -187,6 +190,10 @@ GitHub Actions runs unit tests and command builds for all three Go modules, vali
 ## Kubernetes
 
 The deployment foundation is in `infrastructure/kubernetes`. It runs the three APIs and two workers in Kubernetes while treating PostgreSQL and Kafka as externally managed dependencies. See `infrastructure/kubernetes/README.md` for image, Secret, migration, and deployment instructions.
+
+## Kafka security
+
+Kafka producers and consumers support TLS 1.2+, custom CA trust, optional client certificates, and SASL mechanisms `plain`, `scram-sha-256`, and `scram-sha-512`. Set `KAFKA_REQUIRE_SECURE_TRANSPORT=true` for deployed workers so a missing TLS configuration fails at startup. SASL passwords are never included in validation errors or startup logs.
 
 ## Release
 
@@ -365,10 +372,10 @@ Returns ledger entries created for one payment reference:
 
 ## Next milestone
 
-Milestone 19 should secure Kafka transport for external production brokers:
+Milestone 20 should add production-grade observability:
 
-- TLS configuration for Kafka producers and consumers
-- SASL authentication with credentials sourced from environment variables and Kubernetes Secrets
-- configuration validation and redacted logging
-- unit tests for secure and plaintext local configurations
-- updated Docker Compose and Kubernetes deployment settings
+- Prometheus-format metrics for all APIs and workers
+- Kafka publish/consume success, failure, and lag signals
+- database operation latency and error metrics
+- OpenTelemetry trace propagation across HTTP and Kafka events
+- dashboards and alerting guidance for payment and ledger health

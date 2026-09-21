@@ -36,10 +36,21 @@ func main() {
 
 	ledgerRepository := repository.NewPostgresLedgerRepository(pool)
 	ledgerService := service.NewLedgerService(ledgerRepository)
-	reader := consumer.NewKafkaReader(cfg.KafkaBrokers, cfg.PaymentEventsTopic, cfg.ConsumerGroupID)
+	reader, err := consumer.NewKafkaReader(cfg.KafkaBrokers, cfg.PaymentEventsTopic, cfg.ConsumerGroupID, cfg.KafkaSecurity)
+	if err != nil {
+		logger.Error("Kafka client configuration failed", "error", err)
+		os.Exit(1)
+	}
 	paymentConsumer := consumer.NewPaymentConsumer(reader, ledgerService, logger)
 
-	logger.Info("ledger payment consumer started", "topic", cfg.PaymentEventsTopic, "brokers", cfg.KafkaBrokers, "group_id", cfg.ConsumerGroupID)
+	logger.Info(
+		"ledger payment consumer started",
+		"topic", cfg.PaymentEventsTopic,
+		"broker_count", len(cfg.KafkaBrokers),
+		"group_id", cfg.ConsumerGroupID,
+		"tls_enabled", cfg.KafkaSecurity.TLSEnabled,
+		"sasl_mechanism", cfg.KafkaSecurity.SASLMechanism,
+	)
 	if err := paymentConsumer.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("ledger payment consumer stopped", "error", err)
 		os.Exit(1)

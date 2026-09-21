@@ -12,6 +12,8 @@ These manifests deploy the FinFlow application processes only. PostgreSQL and Ka
 
 Update `configmap.yaml` with the external Kafka broker addresses. The internal payment and ledger URLs already use Kubernetes Service discovery.
 
+Update `KAFKA_TLS_SERVER_NAME` to the hostname on the broker certificate. Kubernetes workers require encrypted Kafka transport and default to `scram-sha-512` authentication.
+
 For manual deployments, set explicit image references before deploying. Tagged releases generate digest-pinned manifests automatically and are preferred. To edit the development manifests manually:
 
 ```powershell
@@ -34,7 +36,16 @@ kubectl -n finflow create secret generic finflow-secrets `
   --from-literal=database-url="postgres://USER:PASSWORD@HOST:5432/finflow?sslmode=require" `
   --from-literal=api-key="REPLACE_ME" `
   --from-literal=internal-service-token="REPLACE_ME"
+
+kubectl -n finflow create secret generic finflow-kafka-auth `
+  --from-literal=username="KAFKA_USERNAME" `
+  --from-literal=password="KAFKA_PASSWORD"
+
+kubectl -n finflow create secret generic finflow-kafka-tls `
+  --from-file=ca.crt="C:\path\to\kafka-ca.crt"
 ```
+
+For mutual TLS, also place `tls.crt` and `tls.key` in `finflow-kafka-tls`, mount those keys in the worker manifests, and set `KAFKA_TLS_CERT_FILE` and `KAFKA_TLS_KEY_FILE` to their mounted paths.
 
 ## Deploy
 
@@ -61,7 +72,7 @@ The gateway Service uses `LoadBalancer`. Payment and ledger Services use `Cluste
 
 The worker Deployments start with one replica. Increase consumer replicas only after considering Kafka partition count. Keep the outbox publisher at one replica until its database claim behavior has been load-tested for concurrent publishers.
 
-The current Kafka client configuration supports broker addresses but does not yet configure SASL or TLS. Do not connect these workloads to a production Kafka cluster until transport authentication is implemented.
+Kafka clients support TLS 1.2 or newer, custom CA trust, optional mutual TLS, SASL PLAIN, SCRAM-SHA-256, and SCRAM-SHA-512. PLAIN is rejected unless TLS is enabled. `KAFKA_REQUIRE_SECURE_TRANSPORT=true` makes startup fail when TLS is disabled.
 
 ## Tagged releases
 

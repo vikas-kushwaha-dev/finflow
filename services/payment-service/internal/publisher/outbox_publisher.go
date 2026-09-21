@@ -7,7 +7,9 @@ import (
 
 	"github.com/segmentio/kafka-go"
 
+	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/config"
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/event"
+	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/kafkaclient"
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/repository"
 )
 
@@ -32,14 +34,44 @@ func NewOutboxPublisher(store repository.OutboxRepository, writer Writer, topic 
 	}
 }
 
-func NewKafkaWriter(brokers []string, topic string) *kafka.Writer {
-	return &kafka.Writer{
-		Addr:         kafka.TCP(brokers...),
-		Topic:        topic,
-		Balancer:     &kafka.Hash{},
-		RequiredAcks: kafka.RequireAll,
-		Async:        false,
+type KafkaWriter struct {
+	writer    *kafka.Writer
+	transport *kafka.Transport
+}
+
+func NewKafkaWriter(brokers []string, topic string, security config.KafkaSecurityConfig) (*KafkaWriter, error) {
+	tlsConfig, saslMechanism, err := kafkaclient.BuildSecurity(security)
+	if err != nil {
+		return nil, err
 	}
+
+	transport := &kafka.Transport{
+		ClientID: "finflow-outbox-publisher",
+		TLS:      tlsConfig,
+		SASL:     saslMechanism,
+	}
+
+	return &KafkaWriter{
+		transport: transport,
+		writer: &kafka.Writer{
+			Addr:         kafka.TCP(brokers...),
+			Topic:        topic,
+			Balancer:     &kafka.Hash{},
+			RequiredAcks: kafka.RequireAll,
+			Async:        false,
+			Transport:    transport,
+		},
+	}, nil
+}
+
+func (w *KafkaWriter) WriteMessages(ctx context.Context, messages ...kafka.Message) error {
+	return w.writer.WriteMessages(ctx, messages...)
+}
+
+func (w *KafkaWriter) Close() error {
+	err := w.writer.Close()
+	w.transport.CloseIdleConnections()
+	return err
 }
 
 func (p *OutboxPublisher) Run(ctx context.Context, interval time.Duration, batchSize int) error {

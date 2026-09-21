@@ -16,3 +16,8 @@ data:
   KAFKA_BROKERS: kafka.example.com:9092
   PAYMENT_EVENTS_TOPIC: finflow.payment.events
   LEDGER_CONSUMER_GROUP_ID: ledger-service
+  KAFKA_REQUIRE_SECURE_TRANSPORT: "true"
+  KAFKA_TLS_ENABLED: "true"
+  KAFKA_TLS_CA_FILE: /etc/finflow/kafka/ca.crt
+  KAFKA_TLS_SERVER_NAME: kafka.example.com
+  KAFKA_SASL_MECHANISM: scram-sha-512

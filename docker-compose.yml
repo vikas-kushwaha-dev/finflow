@@ -162,6 +162,9 @@ services:
       MAX_REQUEST_BODY_BYTES: 1048576
       KAFKA_BROKERS: kafka:9092
       PAYMENT_EVENTS_TOPIC: finflow.payment.events
+      KAFKA_REQUIRE_SECURE_TRANSPORT: "false"
+      KAFKA_TLS_ENABLED: "false"
+      KAFKA_SASL_MECHANISM: none
     depends_on:
       postgres:
         condition: service_healthy
@@ -183,6 +186,9 @@ services:
       INTERNAL_SERVICE_TOKEN: local-internal-service-token-change-me
       KAFKA_BROKERS: kafka:9092
       PAYMENT_EVENTS_TOPIC: finflow.payment.events
+      KAFKA_REQUIRE_SECURE_TRANSPORT: "false"
+      KAFKA_TLS_ENABLED: "false"
+      KAFKA_SASL_MECHANISM: none
       LEDGER_CONSUMER_GROUP_ID: ledger-service
     depends_on:
       postgres:

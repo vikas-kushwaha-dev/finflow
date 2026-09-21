@@ -21,11 +21,17 @@ type Config struct {
 	MaxBodyBytes       int64
 	KafkaBrokers       []string
 	PaymentEventsTopic string
+	KafkaSecurity      KafkaSecurityConfig
 }
 
 func Load() (Config, error) {
 	if err := godotenv.Load("../../.env", ".env"); err != nil {
 		log.Printf("env file not loaded, using environment variables: %v", err)
+	}
+
+	kafkaSecurity, err := loadKafkaSecurity()
+	if err != nil {
+		return Config{}, err
 	}
 
 	cfg := Config{
@@ -36,6 +42,7 @@ func Load() (Config, error) {
 		InternalToken:      getEnv("INTERNAL_SERVICE_TOKEN", "local-internal-service-token-change-me"),
 		KafkaBrokers:       parseCSVEnv("KAFKA_BROKERS", "localhost:9092"),
 		PaymentEventsTopic: getEnv("PAYMENT_EVENTS_TOPIC", "finflow.payment.events"),
+		KafkaSecurity:      kafkaSecurity,
 	}
 
 	maxBodyBytes, err := parseInt64Env("MAX_REQUEST_BODY_BYTES", 1<<20)
@@ -87,6 +94,7 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.PaymentEventsTopic) == "" {
 		problems = append(problems, "PAYMENT_EVENTS_TOPIC is required")
 	}
+	problems = append(problems, c.KafkaSecurity.validationProblems()...)
 
 	if len(problems) > 0 {
 		return fmt.Errorf("invalid config: %w: %s", ErrInvalidConfig, strings.Join(problems, "; "))

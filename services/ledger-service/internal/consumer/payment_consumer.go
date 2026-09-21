@@ -10,6 +10,8 @@ import (
 
 	"github.com/segmentio/kafka-go"
 
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/config"
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/kafkaclient"
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/model"
 )
 
@@ -49,15 +51,29 @@ func NewPaymentConsumer(reader Reader, ledger Ledger, logger *slog.Logger) *Paym
 	}
 }
 
-func NewKafkaReader(brokers []string, topic string, groupID string) *kafka.Reader {
-	return kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        brokers,
-		Topic:          topic,
-		GroupID:        groupID,
+func NewKafkaReader(brokers []string, topic string, groupID string, security config.KafkaSecurityConfig) (*kafka.Reader, error) {
+	tlsConfig, saslMechanism, err := kafkaclient.BuildSecurity(security)
+	if err != nil {
+		return nil, err
+	}
+
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: brokers,
+		Topic:   topic,
+		GroupID: groupID,
+		Dialer: &kafka.Dialer{
+			ClientID:      "finflow-ledger-consumer",
+			Timeout:       10 * time.Second,
+			DualStack:     true,
+			TLS:           tlsConfig,
+			SASLMechanism: saslMechanism,
+		},
 		MinBytes:       1,
 		MaxBytes:       10e6,
 		CommitInterval: 0,
 	})
+
+	return reader, nil
 }
 
 func (c *PaymentConsumer) Run(ctx context.Context) error {

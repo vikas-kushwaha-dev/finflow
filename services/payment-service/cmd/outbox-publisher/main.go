@@ -35,10 +35,20 @@ func main() {
 	defer pool.Close()
 
 	store := repository.NewPostgresPaymentRepository(pool)
-	writer := publisher.NewKafkaWriter(cfg.KafkaBrokers, cfg.PaymentEventsTopic)
+	writer, err := publisher.NewKafkaWriter(cfg.KafkaBrokers, cfg.PaymentEventsTopic, cfg.KafkaSecurity)
+	if err != nil {
+		logger.Error("Kafka client configuration failed", "error", err)
+		os.Exit(1)
+	}
 	outboxPublisher := publisher.NewOutboxPublisher(store, writer, cfg.PaymentEventsTopic, logger)
 
-	logger.Info("outbox publisher started", "topic", cfg.PaymentEventsTopic, "brokers", cfg.KafkaBrokers)
+	logger.Info(
+		"outbox publisher started",
+		"topic", cfg.PaymentEventsTopic,
+		"broker_count", len(cfg.KafkaBrokers),
+		"tls_enabled", cfg.KafkaSecurity.TLSEnabled,
+		"sasl_mechanism", cfg.KafkaSecurity.SASLMechanism,
+	)
 	if err := outboxPublisher.Run(ctx, 2*time.Second, 25); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("outbox publisher stopped", "error", err)
 		os.Exit(1)

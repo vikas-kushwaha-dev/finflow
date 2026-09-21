@@ -16,11 +16,17 @@ type Config struct {
 	KafkaBrokers       []string
 	PaymentEventsTopic string
 	ConsumerGroupID    string
+	KafkaSecurity      KafkaSecurityConfig
 }
 
 var ErrInvalidConfig = errors.New("invalid config")
 
 func Load() (Config, error) {
+	kafkaSecurity, err := loadKafkaSecurity()
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		AppEnv:             getEnv("APP_ENV", "local"),
 		HTTPAddr:           getEnv("LEDGER_HTTP_ADDR", ":8081"),
@@ -29,6 +35,7 @@ func Load() (Config, error) {
 		KafkaBrokers:       parseCSVEnv("KAFKA_BROKERS", "localhost:9092"),
 		PaymentEventsTopic: getEnv("PAYMENT_EVENTS_TOPIC", "finflow.payment.events"),
 		ConsumerGroupID:    getEnv("LEDGER_CONSUMER_GROUP_ID", "ledger-service"),
+		KafkaSecurity:      kafkaSecurity,
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -64,6 +71,7 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.ConsumerGroupID) == "" {
 		problems = append(problems, "LEDGER_CONSUMER_GROUP_ID is required")
 	}
+	problems = append(problems, c.KafkaSecurity.validationProblems()...)
 
 	if len(problems) > 0 {
 		return fmt.Errorf("invalid config: %w: %s", ErrInvalidConfig, strings.Join(problems, "; "))

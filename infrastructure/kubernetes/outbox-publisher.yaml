@@ -55,6 +55,41 @@ spec:
                 configMapKeyRef:
                   name: finflow-config
                   key: PAYMENT_EVENTS_TOPIC
+            - name: KAFKA_REQUIRE_SECURE_TRANSPORT
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: KAFKA_REQUIRE_SECURE_TRANSPORT
+            - name: KAFKA_TLS_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: KAFKA_TLS_ENABLED
+            - name: KAFKA_TLS_CA_FILE
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: KAFKA_TLS_CA_FILE
+            - name: KAFKA_TLS_SERVER_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: KAFKA_TLS_SERVER_NAME
+            - name: KAFKA_SASL_MECHANISM
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: KAFKA_SASL_MECHANISM
+            - name: KAFKA_SASL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: finflow-kafka-auth
+                  key: username
+            - name: KAFKA_SASL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: finflow-kafka-auth
+                  key: password
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -77,4 +112,15 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+          volumeMounts:
+            - name: kafka-ca
+              mountPath: /etc/finflow/kafka
+              readOnly: true
+      volumes:
+        - name: kafka-ca
+          secret:
+            secretName: finflow-kafka-tls
+            items:
+              - key: ca.crt
+                path: ca.crt
       terminationGracePeriodSeconds: 30
