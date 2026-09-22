@@ -8,6 +8,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const internalTokenHeader = "X-Internal-Service-Token"
@@ -23,6 +25,7 @@ func New(target string, stripPrefix string, internalToken string, logger *slog.L
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	proxy.Transport = otelhttp.NewTransport(http.DefaultTransport)
 	originalDirector := proxy.Director
 	proxy.Director = func(r *http.Request) {
 		originalHost := r.Host

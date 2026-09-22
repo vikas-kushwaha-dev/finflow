@@ -11,6 +11,7 @@ import (
 type Config struct {
 	AppEnv             string
 	HTTPAddr           string
+	MetricsAddr        string
 	DatabaseURL        string
 	InternalToken      string
 	KafkaBrokers       []string
@@ -30,6 +31,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		AppEnv:             getEnv("APP_ENV", "local"),
 		HTTPAddr:           getEnv("LEDGER_HTTP_ADDR", ":8081"),
+		MetricsAddr:        getEnv("METRICS_ADDR", ":9090"),
 		DatabaseURL:        getEnv("DATABASE_URL", "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable"),
 		InternalToken:      getEnv("INTERNAL_SERVICE_TOKEN", "local-internal-service-token-change-me"),
 		KafkaBrokers:       parseCSVEnv("KAFKA_BROKERS", "localhost:9092"),
@@ -53,6 +55,9 @@ func (c Config) Validate() error {
 	}
 	if strings.TrimSpace(c.HTTPAddr) == "" {
 		problems = append(problems, "LEDGER_HTTP_ADDR is required")
+	}
+	if strings.TrimSpace(c.MetricsAddr) == "" {
+		problems = append(problems, "METRICS_ADDR is required")
 	}
 	if strings.TrimSpace(c.DatabaseURL) == "" {
 		problems = append(problems, "DATABASE_URL is required")

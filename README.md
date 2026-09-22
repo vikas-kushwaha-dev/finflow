@@ -2,7 +2,7 @@
 
 FinFlow is a fintech/payments learning project built incrementally with production-style boundaries.
 
-Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubernetes are intentionally not implemented yet; they come after the first service is working and tested.
+The project now includes payment, ledger, gateway, event delivery, deployment, release, transport security, and observability milestones. Each layer was added only after the preceding service behavior was working and tested.
 
 ## What exists now
 
@@ -46,7 +46,9 @@ Milestone 1 contains a Go payment service backed by PostgreSQL. Kafka and Kubern
 - structured server logs
 - startup configuration validation
 - readiness checks for PostgreSQL
-- lightweight JSON runtime metrics
+- Prometheus metrics for APIs, workers, PostgreSQL, and Kafka
+- optional OTLP/HTTP tracing across gateway, services, and Kafka events
+- production alert rules and dashboard guidance
 - PostgreSQL integration test entry point
 - unit tests for service and handler behavior
 - GitHub Actions CI for tests, command builds, and Docker Compose validation
@@ -82,11 +84,13 @@ Readiness checks confirm the service can reach PostgreSQL:
 curl http://localhost:8080/ready
 ```
 
-Runtime metrics are exposed as JSON:
+Prometheus metrics are exposed by each API:
 
 ```bash
 curl http://localhost:8080/metrics
 ```
+
+The background workers expose `/metrics` and `/health` on port `9090` inside the Compose network. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to enable OTLP/HTTP trace export; trace-context propagation remains active when exporting is disabled. Monitoring configuration and operational queries are in `infrastructure/observability`.
 
 The gateway is available on port `8088` and is the preferred client-facing entry point:
 
@@ -372,10 +376,9 @@ Returns ledger entries created for one payment reference:
 
 ## Next milestone
 
-Milestone 20 should add production-grade observability:
+Milestone 21 should harden asynchronous failure recovery:
 
-- Prometheus-format metrics for all APIs and workers
-- Kafka publish/consume success, failure, and lag signals
-- database operation latency and error metrics
-- OpenTelemetry trace propagation across HTTP and Kafka events
-- dashboards and alerting guidance for payment and ledger health
+- bounded Kafka retry policies with backoff
+- dead-letter topic handling for poison events
+- operational replay tooling with audit records
+- failure-path integration tests

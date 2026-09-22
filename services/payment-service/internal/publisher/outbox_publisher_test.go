@@ -9,8 +9,11 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/event"
+	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/observability"
 )
 
 type fakeOutboxStore struct {
@@ -57,6 +60,10 @@ func (w *fakeWriter) Close() error {
 }
 
 func TestPublishBatchPublishesAndMarksEvents(t *testing.T) {
+	previousPropagator := otel.GetTextMapPropagator()
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	defer otel.SetTextMapPropagator(previousPropagator)
+	const traceParent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
 	store := &fakeOutboxStore{
 		events: []event.OutboxEvent{
 			{
@@ -65,11 +72,12 @@ func TestPublishBatchPublishesAndMarksEvents(t *testing.T) {
 				AggregateID:   "payment-1",
 				EventType:     event.PaymentCreatedEvent,
 				Payload:       []byte(`{"payment_id":"payment-1"}`),
+				TraceParent:   traceParent,
 			},
 		},
 	}
 	writer := &fakeWriter{}
-	publisher := NewOutboxPublisher(store, writer, event.PaymentEventsTopic, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	publisher := NewOutboxPublisher(store, writer, event.PaymentEventsTopic, slog.New(slog.NewTextHandler(io.Discard, nil)), observability.NewMetrics())
 
 	if err := publisher.PublishBatch(context.Background(), 10); err != nil {
 		t.Fatalf("PublishBatch() error = %v", err)
@@ -81,9 +89,21 @@ func TestPublishBatchPublishesAndMarksEvents(t *testing.T) {
 	if string(writer.messages[0].Key) != "payment-1" {
 		t.Fatalf("message key = %q, want payment-1", string(writer.messages[0].Key))
 	}
+	if value := headerValue(writer.messages[0].Headers, "traceparent"); value != traceParent {
+		t.Fatalf("traceparent header = %q, want %q", value, traceParent)
+	}
 	if len(store.publishedIDs) != 1 || store.publishedIDs[0] != "event-1" {
 		t.Fatalf("publishedIDs = %v, want [event-1]", store.publishedIDs)
 	}
+}
+
+func headerValue(headers []kafka.Header, key string) string {
+	for _, header := range headers {
+		if header.Key == key {
+			return string(header.Value)
+		}
+	}
+	return ""
 }
 
 func TestPublishBatchMarksFailedEvent(t *testing.T) {
@@ -91,7 +111,7 @@ func TestPublishBatchMarksFailedEvent(t *testing.T) {
 		events: []event.OutboxEvent{{ID: "event-1", AggregateID: "payment-1"}},
 	}
 	writer := &fakeWriter{err: errors.New("kafka unavailable")}
-	publisher := NewOutboxPublisher(store, writer, event.PaymentEventsTopic, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	publisher := NewOutboxPublisher(store, writer, event.PaymentEventsTopic, slog.New(slog.NewTextHandler(io.Discard, nil)), observability.NewMetrics())
 
 	if err := publisher.PublishBatch(context.Background(), 10); err != nil {
 		t.Fatalf("PublishBatch() error = %v", err)

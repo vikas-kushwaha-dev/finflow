@@ -10,6 +10,7 @@ func TestConfigValidateAcceptsValidConfig(t *testing.T) {
 	cfg := Config{
 		AppEnv:             "test",
 		HTTPAddr:           ":8080",
+		MetricsAddr:        ":9090",
 		DatabaseURL:        "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable",
 		MigrationsDir:      "../../migrations",
 		InternalToken:      "internal-secret",
@@ -36,6 +37,7 @@ func TestConfigValidateRejectsInvalidDatabaseURL(t *testing.T) {
 	cfg := Config{
 		AppEnv:             "test",
 		HTTPAddr:           ":8080",
+		MetricsAddr:        ":9090",
 		DatabaseURL:        "not-a-url",
 		MigrationsDir:      "../../migrations",
 		InternalToken:      "internal-secret",
@@ -105,6 +107,7 @@ func TestConfigValidateAcceptsSecureKafkaConfig(t *testing.T) {
 	cfg := Config{
 		AppEnv:             "production",
 		HTTPAddr:           ":8080",
+		MetricsAddr:        ":9090",
 		DatabaseURL:        "postgres://finflow:finflow@db:5432/finflow?sslmode=require",
 		MigrationsDir:      "/app/migrations",
 		InternalToken:      "internal-secret",

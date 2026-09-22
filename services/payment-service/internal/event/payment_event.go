@@ -28,6 +28,8 @@ type OutboxEvent struct {
 	AggregateID   string
 	EventType     string
 	Payload       []byte
+	TraceParent   string
+	TraceState    string
 	Status        string
 	Attempts      int
 	LastError     string

@@ -33,7 +33,7 @@ SET status = 'publishing',
 	attempts = attempts + 1,
 	last_error = NULL
 WHERE id IN (SELECT id FROM claimed)
-RETURNING id, aggregate_type, aggregate_id, event_type, payload, status, attempts, COALESCE(last_error, ''), created_at, published_at`
+RETURNING id, aggregate_type, aggregate_id, event_type, payload, COALESCE(trace_parent, ''), COALESCE(trace_state, ''), status, attempts, COALESCE(last_error, ''), created_at, published_at`
 
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -56,6 +56,8 @@ RETURNING id, aggregate_type, aggregate_id, event_type, payload, status, attempt
 			&outboxEvent.AggregateID,
 			&outboxEvent.EventType,
 			&outboxEvent.Payload,
+			&outboxEvent.TraceParent,
+			&outboxEvent.TraceState,
 			&outboxEvent.Status,
 			&outboxEvent.Attempts,
 			&outboxEvent.LastError,

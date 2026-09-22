@@ -15,6 +15,10 @@ spec:
       app.kubernetes.io/name: payment-service
   template:
     metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
       labels:
         app.kubernetes.io/name: payment-service
         app.kubernetes.io/component: api
@@ -39,6 +43,11 @@ spec:
                 configMapKeyRef:
                   name: finflow-config
                   key: APP_ENV
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
             - name: HTTP_ADDR
               valueFrom:
                 configMapKeyRef:

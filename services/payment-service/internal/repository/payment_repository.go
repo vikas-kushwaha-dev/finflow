@@ -7,6 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/event"
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/model"
@@ -201,6 +203,8 @@ RETURNING id, amount_cents, currency, status, description, external_reference, i
 }
 
 func insertOutboxEvent(ctx context.Context, tx pgx.Tx, outboxEvent event.OutboxEvent) error {
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
 	const query = `
 INSERT INTO outbox_events (
 	id,
@@ -208,9 +212,11 @@ INSERT INTO outbox_events (
 	aggregate_id,
 	event_type,
 	payload,
-	status
+	status,
+	trace_parent,
+	trace_state
 )
-VALUES ($1, $2, $3, $4, $5, $6)`
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 	if _, err := tx.Exec(ctx, query,
 		outboxEvent.ID,
@@ -219,6 +225,8 @@ VALUES ($1, $2, $3, $4, $5, $6)`
 		outboxEvent.EventType,
 		outboxEvent.Payload,
 		outboxEvent.Status,
+		carrier.Get("traceparent"),
+		carrier.Get("tracestate"),
 	); err != nil {
 		return fmt.Errorf("insert outbox event: %w", err)
 	}

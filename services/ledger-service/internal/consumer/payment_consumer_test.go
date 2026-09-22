@@ -10,6 +10,7 @@ import (
 	"github.com/segmentio/kafka-go"
 
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/model"
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/observability"
 )
 
 type fakeLedger struct {
@@ -32,7 +33,7 @@ func (l *fakeLedger) RecordPaymentMovementOnce(ctx context.Context, eventID stri
 
 func TestHandleMessageRecordsPaymentCreated(t *testing.T) {
 	ledger := &fakeLedger{processed: true}
-	consumer := NewPaymentConsumer(nil, ledger, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	consumer := NewPaymentConsumer(nil, ledger, slog.New(slog.NewTextHandler(io.Discard, nil)), observability.NewMetrics())
 
 	err := consumer.HandleMessage(context.Background(), kafka.Message{
 		Headers: []kafka.Header{
@@ -57,7 +58,7 @@ func TestHandleMessageRecordsPaymentCreated(t *testing.T) {
 }
 
 func TestHandleMessageRequiresEventID(t *testing.T) {
-	consumer := NewPaymentConsumer(nil, &fakeLedger{processed: true}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	consumer := NewPaymentConsumer(nil, &fakeLedger{processed: true}, slog.New(slog.NewTextHandler(io.Discard, nil)), observability.NewMetrics())
 
 	err := consumer.HandleMessage(context.Background(), kafka.Message{
 		Headers: []kafka.Header{{Key: "event_type", Value: []byte(PaymentCreatedEvent)}},
@@ -70,7 +71,7 @@ func TestHandleMessageRequiresEventID(t *testing.T) {
 
 func TestHandleMessageIgnoresStatusChanged(t *testing.T) {
 	ledger := &fakeLedger{processed: true}
-	consumer := NewPaymentConsumer(nil, ledger, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	consumer := NewPaymentConsumer(nil, ledger, slog.New(slog.NewTextHandler(io.Discard, nil)), observability.NewMetrics())
 
 	err := consumer.HandleMessage(context.Background(), kafka.Message{
 		Headers: []kafka.Header{
@@ -88,7 +89,7 @@ func TestHandleMessageIgnoresStatusChanged(t *testing.T) {
 }
 
 func TestHandleMessageReturnsLedgerError(t *testing.T) {
-	consumer := NewPaymentConsumer(nil, &fakeLedger{err: errors.New("ledger unavailable")}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	consumer := NewPaymentConsumer(nil, &fakeLedger{err: errors.New("ledger unavailable")}, slog.New(slog.NewTextHandler(io.Discard, nil)), observability.NewMetrics())
 
 	err := consumer.HandleMessage(context.Background(), kafka.Message{
 		Headers: []kafka.Header{

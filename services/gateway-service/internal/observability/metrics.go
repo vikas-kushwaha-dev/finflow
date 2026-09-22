@@ -3,36 +3,35 @@ package observability
 import (
 	"log/slog"
 	"net/http"
-	"sync/atomic"
+	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Metrics struct {
-	startedAt       time.Time
-	totalRequests   atomic.Uint64
-	totalServerErrs atomic.Uint64
+	registry     *prometheus.Registry
+	httpRequests *prometheus.CounterVec
+	httpDuration *prometheus.HistogramVec
 }
 
-type Snapshot struct {
-	UptimeSeconds     int64  `json:"uptime_seconds"`
-	StartedAt         string `json:"started_at"`
-	TotalRequests     uint64 `json:"total_requests"`
-	TotalServerErrors uint64 `json:"total_server_errors"`
-}
-
-func NewMetrics(now time.Time) *Metrics {
-	return &Metrics{startedAt: now.UTC()}
-}
-
-func (m *Metrics) Snapshot(now time.Time) Snapshot {
-	return Snapshot{
-		UptimeSeconds:     int64(now.UTC().Sub(m.startedAt).Seconds()),
-		StartedAt:         m.startedAt.Format(time.RFC3339),
-		TotalRequests:     m.totalRequests.Load(),
-		TotalServerErrors: m.totalServerErrs.Load(),
+func NewMetrics() *Metrics {
+	registry := prometheus.NewRegistry()
+	m := &Metrics{
+		registry:     registry,
+		httpRequests: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "finflow_http_requests_total", Help: "HTTP requests handled."}, []string{"method", "route", "status"}),
+		httpDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "finflow_http_request_duration_seconds", Help: "HTTP request duration.", Buckets: prometheus.DefBuckets}, []string{"method", "route"}),
 	}
+	registry.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}), m.httpRequests, m.httpDuration)
+	return m
+}
+
+func (m *Metrics) Handler() http.Handler {
+	return promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{EnableOpenMetrics: true})
 }
 
 func RequestLogger(logger *slog.Logger, metrics *Metrics) func(http.Handler) http.Handler {
@@ -40,29 +39,18 @@ func RequestLogger(logger *slog.Logger, metrics *Metrics) func(http.Handler) htt
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 			recorder := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
-
 			next.ServeHTTP(recorder, r)
-
 			status := recorder.Status()
 			if status == 0 {
 				status = http.StatusOK
 			}
-
-			metrics.totalRequests.Add(1)
-			if status >= http.StatusInternalServerError {
-				metrics.totalServerErrs.Add(1)
+			route := chi.RouteContext(r.Context()).RoutePattern()
+			if route == "" {
+				route = "unmatched"
 			}
-
-			logger.Info("gateway request",
-				"method", r.Method,
-				"path", r.URL.Path,
-				"status", status,
-				"bytes", recorder.BytesWritten(),
-				"duration_ms", time.Since(start).Milliseconds(),
-				"request_id", middleware.GetReqID(r.Context()),
-				"remote_addr", r.RemoteAddr,
-				"user_agent", r.UserAgent(),
-			)
+			metrics.httpRequests.WithLabelValues(r.Method, route, strconv.Itoa(status)).Inc()
+			metrics.httpDuration.WithLabelValues(r.Method, route).Observe(time.Since(start).Seconds())
+			logger.Info("gateway request", "method", r.Method, "route", route, "status", status, "bytes", recorder.BytesWritten(), "duration_ms", time.Since(start).Milliseconds(), "request_id", middleware.GetReqID(r.Context()))
 		})
 	}
 }

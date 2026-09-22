@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: finflow-gateway
+    static_configs:
+      - targets: ["gateway:8088"]
+  - job_name: finflow-payment-api
+    static_configs:
+      - targets: ["payment-service:8080"]
+  - job_name: finflow-ledger-api
+    static_configs:
+      - targets: ["ledger-service:8081"]
+  - job_name: finflow-outbox-publisher
+    static_configs:
+      - targets: ["outbox-publisher:9090"]
+  - job_name: finflow-ledger-consumer
+    static_configs:
+      - targets: ["ledger-consumer:9090"]

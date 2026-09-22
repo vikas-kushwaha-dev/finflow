@@ -1,0 +1,38 @@
+groups:
+  - name: finflow
+    rules:
+      - alert: FinFlowTargetDown
+        expr: up{job=~"finflow-.+"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FinFlow target {{ $labels.job }} is unavailable"
+      - alert: FinFlowHighHTTPErrorRate
+        expr: sum by (job) (rate(finflow_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum by (job) (rate(finflow_http_requests_total[5m])), 0.001) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP 5xx rate exceeds 5% for {{ $labels.job }}"
+      - alert: FinFlowKafkaPublishFailures
+        expr: sum(increase(finflow_kafka_messages_published_total{result="error"}[10m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Payment events are failing to publish"
+      - alert: FinFlowLedgerConsumerLag
+        expr: max(finflow_kafka_consumer_lag_messages) > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ledger consumer lag is above 100 messages"
+      - alert: FinFlowDatabaseErrors
+        expr: sum by (job) (increase(finflow_db_operations_total{result="error"}[10m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database errors are elevated for {{ $labels.job }}"

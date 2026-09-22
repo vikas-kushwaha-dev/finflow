@@ -15,6 +15,7 @@ import (
 type Config struct {
 	AppEnv             string
 	HTTPAddr           string
+	MetricsAddr        string
 	DatabaseURL        string
 	MigrationsDir      string
 	InternalToken      string
@@ -37,6 +38,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		AppEnv:             getEnv("APP_ENV", "local"),
 		HTTPAddr:           getEnv("HTTP_ADDR", ":8080"),
+		MetricsAddr:        getEnv("METRICS_ADDR", ":9090"),
 		DatabaseURL:        getEnv("DATABASE_URL", "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable"),
 		MigrationsDir:      getEnv("MIGRATIONS_DIR", "../../migrations"),
 		InternalToken:      getEnv("INTERNAL_SERVICE_TOKEN", "local-internal-service-token-change-me"),
@@ -67,6 +69,9 @@ func (c Config) Validate() error {
 
 	if strings.TrimSpace(c.HTTPAddr) == "" {
 		problems = append(problems, "HTTP_ADDR is required")
+	}
+	if strings.TrimSpace(c.MetricsAddr) == "" {
+		problems = append(problems, "METRICS_ADDR is required")
 	}
 
 	if strings.TrimSpace(c.DatabaseURL) == "" {

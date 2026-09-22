@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/config"
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/database"
@@ -34,8 +35,15 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	shutdownTracing, err := observability.InitTracing(ctx, "ledger-service", logger)
+	if err != nil {
+		logger.Error("trace configuration failed", "error", err)
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
 
-	pool, err := database.Connect(ctx, cfg.DatabaseURL)
+	metrics := observability.NewMetrics()
+	pool, err := database.Connect(ctx, cfg.DatabaseURL, metrics)
 	if err != nil {
 		logger.Error("database connection failed", "error", err)
 		os.Exit(1)
@@ -45,7 +53,6 @@ func main() {
 	ledgerRepository := repository.NewPostgresLedgerRepository(pool)
 	ledgerService := service.NewLedgerService(ledgerRepository)
 	ledgerHandler := handler.NewLedgerHandler(ledgerService)
-	metrics := observability.NewMetrics(time.Now())
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -80,7 +87,7 @@ func main() {
 	})
 
 	router.Get("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		handler.WriteJSON(w, http.StatusOK, metrics.Snapshot(time.Now()))
+		metrics.Handler().ServeHTTP(w, r)
 	})
 
 	router.Route("/api/v1", func(r chi.Router) {
@@ -90,7 +97,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           router,
+		Handler:           otelhttp.NewHandler(router, "ledger-service.http"),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

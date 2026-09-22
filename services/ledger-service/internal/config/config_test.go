@@ -10,6 +10,7 @@ func TestConfigValidateAcceptsValidConfig(t *testing.T) {
 	cfg := Config{
 		AppEnv:             "test",
 		HTTPAddr:           ":8081",
+		MetricsAddr:        ":9090",
 		DatabaseURL:        "postgres://finflow:finflow@localhost:5432/finflow?sslmode=disable",
 		InternalToken:      "internal-secret",
 		KafkaBrokers:       []string{"localhost:9092"},
@@ -38,6 +39,7 @@ func TestConfigValidateAcceptsSecureKafkaConfig(t *testing.T) {
 	cfg := Config{
 		AppEnv:             "production",
 		HTTPAddr:           ":8081",
+		MetricsAddr:        ":9090",
 		DatabaseURL:        "postgres://finflow:finflow@db:5432/finflow?sslmode=require",
 		InternalToken:      "internal-secret",
 		KafkaBrokers:       []string{"kafka.example.com:9093"},

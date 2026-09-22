@@ -11,6 +11,7 @@ import (
 
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/config"
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/database"
+	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/observability"
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/publisher"
 	"github.com/vikas-kushwaha-dev/finflow/services/payment-service/internal/repository"
 )
@@ -26,8 +27,21 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	shutdownTracing, err := observability.InitTracing(ctx, "outbox-publisher", logger)
+	if err != nil {
+		logger.Error("trace configuration failed", "error", err)
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
+	metrics := observability.NewMetrics()
+	go func() {
+		if err := observability.RunMetricsServer(ctx, cfg.MetricsAddr, metrics, logger); err != nil {
+			logger.Error("worker telemetry failed", "error", err)
+			stop()
+		}
+	}()
 
-	pool, err := database.Connect(ctx, cfg.DatabaseURL)
+	pool, err := database.Connect(ctx, cfg.DatabaseURL, metrics)
 	if err != nil {
 		logger.Error("database connection failed", "error", err)
 		os.Exit(1)
@@ -40,7 +54,7 @@ func main() {
 		logger.Error("Kafka client configuration failed", "error", err)
 		os.Exit(1)
 	}
-	outboxPublisher := publisher.NewOutboxPublisher(store, writer, cfg.PaymentEventsTopic, logger)
+	outboxPublisher := publisher.NewOutboxPublisher(store, writer, cfg.PaymentEventsTopic, logger, metrics)
 
 	logger.Info(
 		"outbox publisher started",

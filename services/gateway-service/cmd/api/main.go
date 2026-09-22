@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/vikas-kushwaha-dev/finflow/services/gateway-service/internal/config"
 	"github.com/vikas-kushwaha-dev/finflow/services/gateway-service/internal/handler"
@@ -45,8 +46,14 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	shutdownTracing, err := observability.InitTracing(ctx, "gateway-service", logger)
+	if err != nil {
+		logger.Error("trace configuration failed", "error", err)
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
 
-	metrics := observability.NewMetrics(time.Now())
+	metrics := observability.NewMetrics()
 	limiter := ratelimit.New(cfg.RateLimitRequests, cfg.RateLimitWindow)
 
 	router := chi.NewRouter()
@@ -65,7 +72,7 @@ func main() {
 	})
 
 	router.Get("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		handler.WriteJSON(w, http.StatusOK, metrics.Snapshot(time.Now()))
+		metrics.Handler().ServeHTTP(w, r)
 	})
 
 	router.Route("/api/v1", func(r chi.Router) {
@@ -80,7 +87,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           router,
+		Handler:           otelhttp.NewHandler(router, "gateway-service.http"),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

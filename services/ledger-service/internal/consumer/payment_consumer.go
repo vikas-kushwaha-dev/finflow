@@ -9,10 +9,16 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/config"
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/kafkaclient"
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/model"
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/observability"
 )
 
 const (
@@ -31,9 +37,10 @@ type Ledger interface {
 }
 
 type PaymentConsumer struct {
-	reader Reader
-	ledger Ledger
-	logger *slog.Logger
+	reader  Reader
+	ledger  Ledger
+	logger  *slog.Logger
+	metrics *observability.Metrics
 }
 
 type paymentCreatedPayload struct {
@@ -43,11 +50,12 @@ type paymentCreatedPayload struct {
 	Currency      string `json:"currency"`
 }
 
-func NewPaymentConsumer(reader Reader, ledger Ledger, logger *slog.Logger) *PaymentConsumer {
+func NewPaymentConsumer(reader Reader, ledger Ledger, logger *slog.Logger, metrics *observability.Metrics) *PaymentConsumer {
 	return &PaymentConsumer{
-		reader: reader,
-		ledger: ledger,
-		logger: logger,
+		reader:  reader,
+		ledger:  ledger,
+		logger:  logger,
+		metrics: metrics,
 	}
 }
 
@@ -102,15 +110,33 @@ func (c *PaymentConsumer) Run(ctx context.Context) error {
 }
 
 func (c *PaymentConsumer) HandleMessage(ctx context.Context, message kafka.Message) error {
+	carrier := propagation.MapCarrier{}
+	for _, header := range message.Headers {
+		carrier.Set(header.Key, string(header.Value))
+	}
+	ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
 	eventID := headerValue(message.Headers, "event_id")
 	eventType := headerValue(message.Headers, "event_type")
+	ctx, span := otel.Tracer("finflow/ledger-consumer").Start(ctx, "kafka consume "+eventType, trace.WithSpanKind(trace.SpanKindConsumer), trace.WithAttributes(attribute.String("messaging.system", "kafka"), attribute.String("messaging.destination.name", message.Topic), attribute.Int("messaging.kafka.partition", message.Partition), attribute.Int64("messaging.kafka.message.offset", message.Offset)))
+	defer span.End()
+	started := time.Now()
+	var err error
+	defer func() {
+		c.metrics.RecordKafkaConsume(eventType, message.Topic, message.Partition, message.HighWaterMark-message.Offset-1, time.Since(started), err)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "consume failed")
+		}
+	}()
 	if eventID == "" {
-		return fmt.Errorf("payment event missing event_id header")
+		err = fmt.Errorf("payment event missing event_id header")
+		return err
 	}
 
 	switch eventType {
 	case PaymentCreatedEvent:
-		return c.handlePaymentCreated(ctx, eventID, eventType, message.Value)
+		err = c.handlePaymentCreated(ctx, eventID, eventType, message.Value)
+		return err
 	case PaymentStatusChangedEvent:
 		c.logger.Info("payment status event ignored by ledger", "event_id", eventID)
 		return nil

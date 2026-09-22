@@ -11,6 +11,7 @@ import (
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/config"
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/consumer"
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/database"
+	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/observability"
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/repository"
 	"github.com/vikas-kushwaha-dev/finflow/services/ledger-service/internal/service"
 )
@@ -26,8 +27,21 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	shutdownTracing, err := observability.InitTracing(ctx, "ledger-consumer", logger)
+	if err != nil {
+		logger.Error("trace configuration failed", "error", err)
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
+	metrics := observability.NewMetrics()
+	go func() {
+		if err := observability.RunMetricsServer(ctx, cfg.MetricsAddr, metrics, logger); err != nil {
+			logger.Error("worker telemetry failed", "error", err)
+			stop()
+		}
+	}()
 
-	pool, err := database.Connect(ctx, cfg.DatabaseURL)
+	pool, err := database.Connect(ctx, cfg.DatabaseURL, metrics)
 	if err != nil {
 		logger.Error("database connection failed", "error", err)
 		os.Exit(1)
@@ -41,7 +55,7 @@ func main() {
 		logger.Error("Kafka client configuration failed", "error", err)
 		os.Exit(1)
 	}
-	paymentConsumer := consumer.NewPaymentConsumer(reader, ledgerService, logger)
+	paymentConsumer := consumer.NewPaymentConsumer(reader, ledgerService, logger, metrics)
 
 	logger.Info(
 		"ledger payment consumer started",

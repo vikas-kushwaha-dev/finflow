@@ -5,41 +5,37 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
-	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
-func TestMetricsSnapshot(t *testing.T) {
-	startedAt := time.Date(2026, 9, 10, 10, 0, 0, 0, time.UTC)
-	metrics := NewMetrics(startedAt)
+func TestRequestLoggerExportsPrometheusMetrics(t *testing.T) {
+	metrics := NewMetrics()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	router := chi.NewRouter()
+	router.Use(RequestLogger(logger, metrics))
+	router.Get("/test/{id}", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) })
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/test/123", nil))
 
-	snapshot := metrics.Snapshot(startedAt.Add(90 * time.Second))
-
-	if snapshot.UptimeSeconds != 90 {
-		t.Fatalf("UptimeSeconds = %d, want 90", snapshot.UptimeSeconds)
+	recorder := httptest.NewRecorder()
+	metrics.Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := recorder.Body.String()
+	if !strings.Contains(body, `finflow_http_requests_total{method="GET",route="/test/{id}",status="500"} 1`) {
+		t.Fatalf("metrics output missing request counter: %s", body)
 	}
-	if snapshot.StartedAt != "2026-09-10T10:00:00Z" {
-		t.Fatalf("StartedAt = %q, want RFC3339 start time", snapshot.StartedAt)
+	if !strings.Contains(body, "finflow_http_request_duration_seconds_bucket") {
+		t.Fatalf("metrics output missing duration histogram")
 	}
 }
 
-func TestRequestLoggerRecordsRequestsAndServerErrors(t *testing.T) {
-	metrics := NewMetrics(time.Now())
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := RequestLogger(logger, metrics)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	snapshot := metrics.Snapshot(time.Now())
-	if snapshot.TotalRequests != 1 {
-		t.Fatalf("TotalRequests = %d, want 1", snapshot.TotalRequests)
-	}
-	if snapshot.TotalServerErrors != 1 {
-		t.Fatalf("TotalServerErrors = %d, want 1", snapshot.TotalServerErrors)
+func TestKafkaMetricsUseBoundedLabels(t *testing.T) {
+	metrics := NewMetrics()
+	metrics.RecordKafkaPublish("payment.created", 0, nil)
+	recorder := httptest.NewRecorder()
+	metrics.Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if !strings.Contains(recorder.Body.String(), `finflow_kafka_messages_published_total{event_type="payment.created",result="success"} 1`) {
+		t.Fatalf("metrics output missing Kafka success counter")
 	}
 }
