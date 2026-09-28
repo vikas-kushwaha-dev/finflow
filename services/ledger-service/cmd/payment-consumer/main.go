@@ -55,13 +55,21 @@ func main() {
 		logger.Error("Kafka client configuration failed", "error", err)
 		os.Exit(1)
 	}
-	paymentConsumer := consumer.NewPaymentConsumer(reader, ledgerService, logger, metrics)
+	deadLetterWriter, err := consumer.NewKafkaWriter(cfg.KafkaBrokers, cfg.DeadLetterTopic, "finflow-ledger-dead-letter", cfg.KafkaSecurity)
+	if err != nil {
+		logger.Error("Kafka dead-letter client configuration failed", "error", err)
+		os.Exit(1)
+	}
+	deadLetters := consumer.NewDeadLetterPublisher(deadLetterWriter, cfg.DeadLetterTopic)
+	paymentConsumer := consumer.NewPaymentConsumer(reader, ledgerService, deadLetters, cfg.ConsumerMaxAttempts, cfg.RetryInitialBackoff, cfg.RetryMaxBackoff, logger, metrics)
 
 	logger.Info(
 		"ledger payment consumer started",
 		"topic", cfg.PaymentEventsTopic,
 		"broker_count", len(cfg.KafkaBrokers),
 		"group_id", cfg.ConsumerGroupID,
+		"dead_letter_topic", cfg.DeadLetterTopic,
+		"max_attempts", cfg.ConsumerMaxAttempts,
 		"tls_enabled", cfg.KafkaSecurity.TLSEnabled,
 		"sasl_mechanism", cfg.KafkaSecurity.SASLMechanism,
 	)

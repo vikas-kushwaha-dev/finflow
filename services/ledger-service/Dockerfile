@@ -12,6 +12,7 @@ ARG TARGETARCH=amd64
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/payment-consumer ./cmd/payment-consumer
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/replay-dead-letter ./cmd/replay-dead-letter
 
 FROM alpine:3.22
 
@@ -21,6 +22,7 @@ WORKDIR /app
 
 COPY --from=build /out/api /app/api
 COPY --from=build /out/payment-consumer /app/payment-consumer
+COPY --from=build /out/replay-dead-letter /app/replay-dead-letter
 
 USER 10001:10001
 

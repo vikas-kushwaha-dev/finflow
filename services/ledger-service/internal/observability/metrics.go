@@ -25,6 +25,8 @@ type Metrics struct {
 	kafkaConsumed *prometheus.CounterVec
 	kafkaDuration *prometheus.HistogramVec
 	kafkaLag      *prometheus.GaugeVec
+	kafkaRetries  *prometheus.CounterVec
+	deadLetters   *prometheus.CounterVec
 }
 
 func NewMetrics() *Metrics {
@@ -38,9 +40,29 @@ func NewMetrics() *Metrics {
 		kafkaConsumed: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "finflow_kafka_messages_consumed_total", Help: "Kafka messages processed."}, []string{"event_type", "result"}),
 		kafkaDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "finflow_kafka_consume_duration_seconds", Help: "Kafka processing duration.", Buckets: prometheus.DefBuckets}, []string{"event_type"}),
 		kafkaLag:      prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "finflow_kafka_consumer_lag_messages", Help: "Approximate message lag from the last fetched high-water mark."}, []string{"topic", "partition"}),
+		kafkaRetries:  prometheus.NewCounterVec(prometheus.CounterOpts{Name: "finflow_kafka_consumer_retries_total", Help: "Kafka message processing retries."}, []string{"event_type"}),
+		deadLetters:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "finflow_kafka_dead_letters_total", Help: "Kafka dead-letter publishing outcomes."}, []string{"event_type", "result"}),
 	}
-	registry.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}), m.httpRequests, m.httpDuration, m.dbOperations, m.dbDuration, m.kafkaConsumed, m.kafkaDuration, m.kafkaLag)
+	registry.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}), m.httpRequests, m.httpDuration, m.dbOperations, m.dbDuration, m.kafkaConsumed, m.kafkaDuration, m.kafkaLag, m.kafkaRetries, m.deadLetters)
 	return m
+}
+
+func (m *Metrics) RecordKafkaRetry(eventType string) {
+	if eventType == "" {
+		eventType = "unknown"
+	}
+	m.kafkaRetries.WithLabelValues(eventType).Inc()
+}
+
+func (m *Metrics) RecordDeadLetter(eventType string, err error) {
+	if eventType == "" {
+		eventType = "unknown"
+	}
+	result := "success"
+	if err != nil {
+		result = "error"
+	}
+	m.deadLetters.WithLabelValues(eventType, result).Inc()
 }
 
 func (m *Metrics) Handler() http.Handler {

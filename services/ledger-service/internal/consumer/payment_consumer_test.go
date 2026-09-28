@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 
@@ -21,6 +22,10 @@ type fakeLedger struct {
 	eventType string
 }
 
+func newTestConsumer(ledger Ledger) *PaymentConsumer {
+	return NewPaymentConsumer(nil, ledger, nil, 3, time.Millisecond, time.Millisecond, slog.New(slog.NewTextHandler(io.Discard, nil)), observability.NewMetrics())
+}
+
 func (l *fakeLedger) RecordPaymentMovementOnce(ctx context.Context, eventID string, eventType string, request model.PaymentMovementRequest) ([]model.Entry, bool, error) {
 	l.eventID = eventID
 	l.eventType = eventType
@@ -33,7 +38,7 @@ func (l *fakeLedger) RecordPaymentMovementOnce(ctx context.Context, eventID stri
 
 func TestHandleMessageRecordsPaymentCreated(t *testing.T) {
 	ledger := &fakeLedger{processed: true}
-	consumer := NewPaymentConsumer(nil, ledger, slog.New(slog.NewTextHandler(io.Discard, nil)), observability.NewMetrics())
+	consumer := newTestConsumer(ledger)
 
 	err := consumer.HandleMessage(context.Background(), kafka.Message{
 		Headers: []kafka.Header{
@@ -58,7 +63,7 @@ func TestHandleMessageRecordsPaymentCreated(t *testing.T) {
 }
 
 func TestHandleMessageRequiresEventID(t *testing.T) {
-	consumer := NewPaymentConsumer(nil, &fakeLedger{processed: true}, slog.New(slog.NewTextHandler(io.Discard, nil)), observability.NewMetrics())
+	consumer := newTestConsumer(&fakeLedger{processed: true})
 
 	err := consumer.HandleMessage(context.Background(), kafka.Message{
 		Headers: []kafka.Header{{Key: "event_type", Value: []byte(PaymentCreatedEvent)}},
@@ -71,7 +76,7 @@ func TestHandleMessageRequiresEventID(t *testing.T) {
 
 func TestHandleMessageIgnoresStatusChanged(t *testing.T) {
 	ledger := &fakeLedger{processed: true}
-	consumer := NewPaymentConsumer(nil, ledger, slog.New(slog.NewTextHandler(io.Discard, nil)), observability.NewMetrics())
+	consumer := newTestConsumer(ledger)
 
 	err := consumer.HandleMessage(context.Background(), kafka.Message{
 		Headers: []kafka.Header{
@@ -89,7 +94,7 @@ func TestHandleMessageIgnoresStatusChanged(t *testing.T) {
 }
 
 func TestHandleMessageReturnsLedgerError(t *testing.T) {
-	consumer := NewPaymentConsumer(nil, &fakeLedger{err: errors.New("ledger unavailable")}, slog.New(slog.NewTextHandler(io.Discard, nil)), observability.NewMetrics())
+	consumer := newTestConsumer(&fakeLedger{err: errors.New("ledger unavailable")})
 
 	err := consumer.HandleMessage(context.Background(), kafka.Message{
 		Headers: []kafka.Header{

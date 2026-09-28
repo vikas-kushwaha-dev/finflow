@@ -37,10 +37,14 @@ type Ledger interface {
 }
 
 type PaymentConsumer struct {
-	reader  Reader
-	ledger  Ledger
-	logger  *slog.Logger
-	metrics *observability.Metrics
+	reader              Reader
+	ledger              Ledger
+	deadLetters         *DeadLetterPublisher
+	maxAttempts         int
+	retryInitialBackoff time.Duration
+	retryMaxBackoff     time.Duration
+	logger              *slog.Logger
+	metrics             *observability.Metrics
 }
 
 type paymentCreatedPayload struct {
@@ -50,12 +54,16 @@ type paymentCreatedPayload struct {
 	Currency      string `json:"currency"`
 }
 
-func NewPaymentConsumer(reader Reader, ledger Ledger, logger *slog.Logger, metrics *observability.Metrics) *PaymentConsumer {
+func NewPaymentConsumer(reader Reader, ledger Ledger, deadLetters *DeadLetterPublisher, maxAttempts int, retryInitialBackoff time.Duration, retryMaxBackoff time.Duration, logger *slog.Logger, metrics *observability.Metrics) *PaymentConsumer {
 	return &PaymentConsumer{
-		reader:  reader,
-		ledger:  ledger,
-		logger:  logger,
-		metrics: metrics,
+		reader:              reader,
+		ledger:              ledger,
+		deadLetters:         deadLetters,
+		maxAttempts:         maxAttempts,
+		retryInitialBackoff: retryInitialBackoff,
+		retryMaxBackoff:     retryMaxBackoff,
+		logger:              logger,
+		metrics:             metrics,
 	}
 }
 
@@ -86,27 +94,69 @@ func NewKafkaReader(brokers []string, topic string, groupID string, security con
 
 func (c *PaymentConsumer) Run(ctx context.Context) error {
 	defer c.reader.Close()
+	defer c.deadLetters.Close()
 
 	for {
 		message, err := c.reader.FetchMessage(ctx)
 		if err != nil {
-			if errors.Is(err, context.Canceled) {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return err
 			}
 			c.logger.Error("fetch payment event failed", "error", err)
-			time.Sleep(time.Second)
+			timer := time.NewTimer(time.Second)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
 			continue
 		}
 
-		if err := c.HandleMessage(ctx, message); err != nil {
-			c.logger.Error("handle payment event failed", "error", err)
-			continue
+		attempts, err := c.handleWithRetry(ctx, message)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return err
+			}
+			c.logger.Error("payment event retries exhausted", "event_id", headerValue(message.Headers, "event_id"), "attempts", attempts, "error", err)
+			if publishErr := c.deadLetters.Publish(ctx, message, err, attempts); publishErr != nil {
+				c.metrics.RecordDeadLetter(headerValue(message.Headers, "event_type"), publishErr)
+				return fmt.Errorf("dead-letter payment event: %w", publishErr)
+			}
+			c.metrics.RecordDeadLetter(headerValue(message.Headers, "event_type"), nil)
 		}
 
 		if err := c.reader.CommitMessages(ctx, message); err != nil {
-			c.logger.Error("commit payment event failed", "error", err)
+			return fmt.Errorf("commit payment event: %w", err)
 		}
 	}
+}
+
+func (c *PaymentConsumer) handleWithRetry(ctx context.Context, message kafka.Message) (int, error) {
+	backoff := c.retryInitialBackoff
+	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
+		err := c.HandleMessage(ctx, message)
+		if err == nil {
+			return attempt, nil
+		}
+		if isPermanent(err) || attempt == c.maxAttempts {
+			return attempt, err
+		}
+		c.metrics.RecordKafkaRetry(headerValue(message.Headers, "event_type"))
+		c.logger.Warn("retrying payment event", "event_id", headerValue(message.Headers, "event_id"), "attempt", attempt, "backoff", backoff, "error", err)
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return attempt, ctx.Err()
+		case <-timer.C:
+		}
+		backoff *= 2
+		if backoff > c.retryMaxBackoff {
+			backoff = c.retryMaxBackoff
+		}
+	}
+	return c.maxAttempts, fmt.Errorf("payment event retries exhausted")
 }
 
 func (c *PaymentConsumer) HandleMessage(ctx context.Context, message kafka.Message) error {
@@ -129,7 +179,7 @@ func (c *PaymentConsumer) HandleMessage(ctx context.Context, message kafka.Messa
 		}
 	}()
 	if eventID == "" {
-		err = fmt.Errorf("payment event missing event_id header")
+		err = permanent(fmt.Errorf("payment event missing event_id header"))
 		return err
 	}
 
@@ -149,7 +199,7 @@ func (c *PaymentConsumer) HandleMessage(ctx context.Context, message kafka.Messa
 func (c *PaymentConsumer) handlePaymentCreated(ctx context.Context, eventID string, eventType string, value []byte) error {
 	var payload paymentCreatedPayload
 	if err := json.Unmarshal(value, &payload); err != nil {
-		return fmt.Errorf("decode payment.created payload: %w", err)
+		return permanent(fmt.Errorf("decode payment.created payload: %w", err))
 	}
 
 	entries, processed, err := c.ledger.RecordPaymentMovementOnce(ctx, eventID, eventType, model.PaymentMovementRequest{
@@ -168,6 +218,15 @@ func (c *PaymentConsumer) handlePaymentCreated(ctx context.Context, eventID stri
 
 	c.logger.Info("payment event consumed", "event_id", eventID, "payment_id", payload.PaymentID, "entries", len(entries))
 	return nil
+}
+
+type permanentError struct{ error }
+
+func permanent(err error) error { return permanentError{error: err} }
+
+func isPermanent(err error) bool {
+	var target permanentError
+	return errors.As(err, &target)
 }
 
 func headerValue(headers []kafka.Header, key string) string {

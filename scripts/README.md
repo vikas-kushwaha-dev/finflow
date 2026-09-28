@@ -42,6 +42,21 @@ If Docker image downloads are slow or fail, run the script again after Docker De
 
 The smoke test is a release check rather than a pull-request CI check because it starts PostgreSQL, Kafka, and every FinFlow service. Run it before a release or after changes to cross-service behavior, event delivery, Dockerfiles, or Docker Compose wiring.
 
+## Dead-letter replay
+
+After fixing the cause of a failed ledger event, replay one exact dead-letter record by its event ID, partition, and offset:
+
+```powershell
+.\scripts\replay-dead-letter.ps1 `
+  -EventId "event-id" `
+  -Partition 0 `
+  -Offset 42 `
+  -Operator "operator@example.com" `
+  -Reason "Database constraint corrected"
+```
+
+The command verifies the requested event ID, allows only the configured payment-event source topic, and writes a durable audit record. A succeeded or in-progress event cannot be replayed again automatically. A failed replay may be retried.
+
 ## Release manifest rendering
 
 `render-release-manifests.ps1` renders the Kubernetes application and migration resources with immutable container image digests. The release workflow calls it after publishing all three images. It can also be run locally with a registry path and three valid `sha256` digests.

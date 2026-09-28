@@ -49,6 +49,9 @@ The project now includes payment, ledger, gateway, event delivery, deployment, r
 - Prometheus metrics for APIs, workers, PostgreSQL, and Kafka
 - optional OTLP/HTTP tracing across gateway, services, and Kafka events
 - production alert rules and dashboard guidance
+- bounded ledger-consumer retries with exponential backoff
+- structured dead-letter records for exhausted and poison events
+- deterministic, audited dead-letter replay tooling
 - PostgreSQL integration test entry point
 - unit tests for service and handler behavior
 - GitHub Actions CI for tests, command builds, and Docker Compose validation
@@ -376,9 +379,9 @@ Returns ledger entries created for one payment reference:
 
 ## Next milestone
 
-Milestone 21 should harden asynchronous failure recovery:
+Milestone 22 should add production data-protection operations:
 
-- bounded Kafka retry policies with backoff
-- dead-letter topic handling for poison events
-- operational replay tooling with audit records
-- failure-path integration tests
+- PostgreSQL backup and point-in-time recovery guidance
+- restore verification automation
+- retention policies for outbox, consumed-event, replay-audit, and ledger data
+- disaster-recovery runbooks and recovery objectives

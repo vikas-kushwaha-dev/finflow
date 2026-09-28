@@ -17,6 +17,8 @@ Use these panels as the minimum payment-flow dashboard:
 | Kafka publish failures | `sum by (event_type) (rate(finflow_kafka_messages_published_total{result="error"}[5m]))` |
 | Kafka consume failures | `sum by (event_type) (rate(finflow_kafka_messages_consumed_total{result="error"}[5m]))` |
 | Consumer lag | `max by (topic, partition) (finflow_kafka_consumer_lag_messages)` |
+| Consumer retries | `sum by (event_type) (rate(finflow_kafka_consumer_retries_total[5m]))` |
+| Dead-letter outcomes | `sum by (event_type, result) (increase(finflow_kafka_dead_letters_total[1h]))` |
 
 ## Tracing
 
@@ -30,3 +32,4 @@ Do not put payment IDs, idempotency keys, customer data, or raw SQL in metric la
 2. For publish failures, verify Kafka connectivity and TLS/SASL settings, then inspect outbox rows in `failed` state.
 3. For consumer lag, compare consume failures with database latency before scaling consumers; partition count limits useful concurrency.
 4. For database errors, check PostgreSQL availability and pool pressure before retrying or restarting workloads.
+5. For dead letters, fix the underlying cause first, identify the exact topic partition and offset, and use `scripts/replay-dead-letter.ps1`. Never replay by copying payloads manually.

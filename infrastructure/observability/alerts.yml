@@ -29,6 +29,20 @@ groups:
           severity: warning
         annotations:
           summary: "Ledger consumer lag is above 100 messages"
+      - alert: FinFlowDeadLettersCreated
+        expr: sum(increase(finflow_kafka_dead_letters_total{result="success"}[10m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ledger events were moved to the dead-letter topic"
+      - alert: FinFlowDeadLetterPublishFailures
+        expr: sum(increase(finflow_kafka_dead_letters_total{result="error"}[5m])) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ledger dead-letter publishing is failing"
       - alert: FinFlowDatabaseErrors
         expr: sum by (job) (increase(finflow_db_operations_total{result="error"}[10m])) > 5
         for: 5m

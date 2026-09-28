@@ -18,6 +18,10 @@ data:
   KAFKA_BROKERS: kafka.example.com:9092
   PAYMENT_EVENTS_TOPIC: finflow.payment.events
   LEDGER_CONSUMER_GROUP_ID: ledger-service
+  LEDGER_DEAD_LETTER_TOPIC: finflow.payment.events.dead-letter
+  LEDGER_CONSUMER_MAX_ATTEMPTS: "5"
+  LEDGER_RETRY_INITIAL_BACKOFF: 250ms
+  LEDGER_RETRY_MAX_BACKOFF: 5s
   KAFKA_REQUIRE_SECURE_TRANSPORT: "true"
   KAFKA_TLS_ENABLED: "true"
   KAFKA_TLS_CA_FILE: /etc/finflow/kafka/ca.crt

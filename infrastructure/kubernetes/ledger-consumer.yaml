@@ -67,6 +67,26 @@ spec:
                 configMapKeyRef:
                   name: finflow-config
                   key: LEDGER_CONSUMER_GROUP_ID
+            - name: LEDGER_DEAD_LETTER_TOPIC
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: LEDGER_DEAD_LETTER_TOPIC
+            - name: LEDGER_CONSUMER_MAX_ATTEMPTS
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: LEDGER_CONSUMER_MAX_ATTEMPTS
+            - name: LEDGER_RETRY_INITIAL_BACKOFF
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: LEDGER_RETRY_INITIAL_BACKOFF
+            - name: LEDGER_RETRY_MAX_BACKOFF
+              valueFrom:
+                configMapKeyRef:
+                  name: finflow-config
+                  key: LEDGER_RETRY_MAX_BACKOFF
             - name: KAFKA_REQUIRE_SECURE_TRANSPORT
               valueFrom:
                 configMapKeyRef:

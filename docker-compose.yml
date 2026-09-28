@@ -195,6 +195,10 @@ services:
       KAFKA_TLS_ENABLED: "false"
       KAFKA_SASL_MECHANISM: none
       LEDGER_CONSUMER_GROUP_ID: ledger-service
+      LEDGER_DEAD_LETTER_TOPIC: finflow.payment.events.dead-letter
+      LEDGER_CONSUMER_MAX_ATTEMPTS: 5
+      LEDGER_RETRY_INITIAL_BACKOFF: 250ms
+      LEDGER_RETRY_MAX_BACKOFF: 5s
     depends_on:
       postgres:
         condition: service_healthy
