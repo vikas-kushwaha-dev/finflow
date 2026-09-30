@@ -60,3 +60,43 @@ The command verifies the requested event ID, allows only the configured payment-
 ## Release manifest rendering
 
 `render-release-manifests.ps1` renders the Kubernetes application and migration resources with immutable container image digests. The release workflow calls it after publishing all three images. It can also be run locally with a registry path and three valid `sha256` digests.
+
+## PostgreSQL backup
+
+Create a custom-format logical backup and SHA-256 manifest with locally installed PostgreSQL client tools:
+
+```powershell
+.\scripts\backup-postgres.ps1 `
+  -DatabaseUrl $env:DATABASE_URL
+```
+
+Backups default to the ignored `backups/` directory. The script validates that `pg_restore` can read the archive and records the server, migration, and client-tool versions without writing credentials to the manifest.
+
+## Restore verification
+
+Restore a backup into a disposable PostgreSQL container and verify its integrity:
+
+```powershell
+.\scripts\verify-postgres-backup.ps1 `
+  -BackupPath .\backups\finflow-TIMESTAMP.dump
+```
+
+The source database is never contacted. The script verifies the checksum, restores into an isolated database, validates migration state and payment constraints, and confirms every ledger transaction is balanced.
+
+## Data retention
+
+Preview eligible operational records without deleting them:
+
+```powershell
+docker compose --profile operations run --rm retention
+```
+
+After reviewing the counts, a deletion run requires both safeguards:
+
+```powershell
+$env:RETENTION_DRY_RUN = "false"
+$env:RETENTION_CONFIRM = "DELETE_OPERATIONAL_DATA"
+docker compose --profile operations run --rm retention
+```
+
+See `infrastructure/postgres/README.md` for recovery objectives, PITR requirements, restore procedures, and the complete retention policy.

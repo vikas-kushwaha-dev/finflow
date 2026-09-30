@@ -178,6 +178,27 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  retention:
+    profiles: ["operations"]
+    build:
+      context: .
+      dockerfile: services/payment-service/Dockerfile
+    command: ["/app/retention"]
+    environment:
+      DATABASE_URL: postgres://finflow:finflow@postgres:5432/finflow?sslmode=disable
+      RETENTION_DRY_RUN: ${RETENTION_DRY_RUN:-true}
+      RETENTION_CONFIRM: ${RETENTION_CONFIRM:-}
+      RETENTION_BATCH_SIZE: ${RETENTION_BATCH_SIZE:-1000}
+      OUTBOX_RETENTION: ${OUTBOX_RETENTION:-720h}
+      CONSUMED_EVENT_RETENTION: ${CONSUMED_EVENT_RETENTION:-2160h}
+      REPLAY_AUDIT_RETENTION: ${REPLAY_AUDIT_RETENTION:-8760h}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
   ledger-consumer:
     build:
       context: .

@@ -23,6 +23,23 @@ function Assert-CommandSucceeded {
 
 Push-Location $projectRoot
 try {
+    Write-Step "parsing PowerShell operations scripts"
+    foreach ($script in @(
+        "scripts/backup-postgres.ps1",
+        "scripts/verify-postgres-backup.ps1"
+    )) {
+        $tokens = $null
+        $parseErrors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $projectRoot $script),
+            [ref]$tokens,
+            [ref]$parseErrors
+        ) | Out-Null
+        if ($parseErrors.Count -gt 0) {
+            throw "PowerShell syntax validation failed for ${script}: $($parseErrors[0].Message)"
+        }
+    }
+
     foreach ($service in $services) {
         Write-Step "testing $service"
         Push-Location $service

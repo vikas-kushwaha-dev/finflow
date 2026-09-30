@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS idx_dead_letter_replays_completed_retention;
+DROP INDEX IF EXISTS idx_consumed_ledger_events_retention;
+DROP INDEX IF EXISTS idx_outbox_events_published_retention;

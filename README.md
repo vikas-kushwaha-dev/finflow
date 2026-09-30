@@ -2,7 +2,7 @@
 
 FinFlow is a fintech/payments learning project built incrementally with production-style boundaries.
 
-The project now includes payment, ledger, gateway, event delivery, deployment, release, transport security, and observability milestones. Each layer was added only after the preceding service behavior was working and tested.
+The project now includes payment, ledger, gateway, event delivery, deployment, release, transport security, observability, failure recovery, and database recovery operations. Each layer was added only after the preceding service behavior was working and tested.
 
 ## What exists now
 
@@ -377,11 +377,18 @@ Returns ledger entries created for one payment reference:
 }
 ```
 
+## Data protection operations
+
+- `scripts/backup-postgres.ps1` creates a custom-format logical backup and SHA-256 manifest.
+- `scripts/verify-postgres-backup.ps1` restores an archive into an isolated PostgreSQL container and validates data invariants.
+- `docker compose --profile operations run --rm retention` reports records eligible for retention cleanup without deleting by default.
+- `infrastructure/postgres/README.md` defines PITR requirements, RPO/RTO targets, restore runbooks, and data retention policy.
+
 ## Next milestone
 
-Milestone 22 should add production data-protection operations:
+Milestone 23 should add performance and capacity engineering:
 
-- PostgreSQL backup and point-in-time recovery guidance
-- restore verification automation
-- retention policies for outbox, consumed-event, replay-audit, and ledger data
-- disaster-recovery runbooks and recovery objectives
+- repeatable API and event-throughput load tests
+- latency and throughput service-level objectives
+- PostgreSQL query and index analysis under representative load
+- capacity assumptions, saturation alerts, and scaling guidance
