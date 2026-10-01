@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestRequestLoggerExportsPrometheusMetrics(t *testing.T) {
@@ -27,6 +29,28 @@ func TestRequestLoggerExportsPrometheusMetrics(t *testing.T) {
 	}
 	if !strings.Contains(body, "finflow_http_request_duration_seconds_bucket") {
 		t.Fatalf("metrics output missing duration histogram")
+	}
+}
+
+func TestRegisterDBPoolExportsCapacityMetrics(t *testing.T) {
+	config, err := pgxpool.ParseConfig("postgres://localhost/finflow")
+	if err != nil {
+		t.Fatalf("ParseConfig() error = %v", err)
+	}
+	config.MaxConns = 7
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		t.Fatalf("NewWithConfig() error = %v", err)
+	}
+	defer pool.Close()
+
+	metrics := NewMetrics()
+	metrics.RegisterDBPool(pool)
+	recorder := httptest.NewRecorder()
+	metrics.Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := recorder.Body.String()
+	if !strings.Contains(body, `finflow_db_pool_connections{state="max"} 7`) {
+		t.Fatalf("metrics output missing pool capacity: %s", body)
 	}
 }
 

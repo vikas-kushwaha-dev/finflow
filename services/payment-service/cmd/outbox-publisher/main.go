@@ -47,6 +47,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+	metrics.RegisterDBPool(pool)
 
 	store := repository.NewPostgresPaymentRepository(pool)
 	writer, err := publisher.NewKafkaWriter(cfg.KafkaBrokers, cfg.PaymentEventsTopic, cfg.KafkaSecurity)

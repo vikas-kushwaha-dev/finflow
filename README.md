@@ -2,7 +2,7 @@
 
 FinFlow is a fintech/payments learning project built incrementally with production-style boundaries.
 
-The project now includes payment, ledger, gateway, event delivery, deployment, release, transport security, observability, failure recovery, and database recovery operations. Each layer was added only after the preceding service behavior was working and tested.
+The project now includes payment, ledger, gateway, event delivery, deployment, release, transport security, observability, failure recovery, database recovery, and capacity engineering. Each layer was added only after the preceding service behavior was working and tested.
 
 ## What exists now
 
@@ -384,11 +384,18 @@ Returns ledger entries created for one payment reference:
 - `docker compose --profile operations run --rm retention` reports records eligible for retention cleanup without deleting by default.
 - `infrastructure/postgres/README.md` defines PITR requirements, RPO/RTO targets, restore runbooks, and data retention policy.
 
+## Performance and capacity
+
+- `scripts/load-test.ps1` runs threshold-enforced payment API or event-delivery k6 workloads.
+- `scripts/analyze-postgres.ps1` captures time-bounded, read-only execution plans for critical queries.
+- `infrastructure/observability/recording-rules.yml` derives latency, error, and pool-utilization indicators.
+- `infrastructure/performance/README.md` defines initial SLOs, workload profiles, capacity assumptions, stop conditions, and scaling guidance.
+
 ## Next milestone
 
-Milestone 23 should add performance and capacity engineering:
+Milestone 24 should add controlled resilience testing:
 
-- repeatable API and event-throughput load tests
-- latency and throughput service-level objectives
-- PostgreSQL query and index analysis under representative load
-- capacity assumptions, saturation alerts, and scaling guidance
+- dependency failure drills for PostgreSQL and Kafka
+- graceful degradation and recovery verification
+- repeatable pod termination and network interruption experiments
+- resilience runbooks with abort conditions and evidence capture

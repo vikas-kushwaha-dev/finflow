@@ -26,7 +26,9 @@ try {
     Write-Step "parsing PowerShell operations scripts"
     foreach ($script in @(
         "scripts/backup-postgres.ps1",
-        "scripts/verify-postgres-backup.ps1"
+        "scripts/verify-postgres-backup.ps1",
+        "scripts/load-test.ps1",
+        "scripts/analyze-postgres.ps1"
     )) {
         $tokens = $null
         $parseErrors = $null
@@ -38,6 +40,21 @@ try {
         if ($parseErrors.Count -gt 0) {
             throw "PowerShell syntax validation failed for ${script}: $($parseErrors[0].Message)"
         }
+    }
+
+    Write-Step "validating performance workload definitions"
+    foreach ($workload in @(
+        "tests/performance/payment-api.js",
+        "tests/performance/event-throughput.js"
+    )) {
+        $content = Get-Content -LiteralPath (Join-Path $projectRoot $workload) -Raw
+        if ($content -notmatch "thresholds" -or $content -notmatch "http_req_failed") {
+            throw "performance workload is missing failure thresholds: $workload"
+        }
+    }
+    $queryPlanSQL = Get-Content -LiteralPath (Join-Path $projectRoot "tests/performance/postgres-query-plans.sql") -Raw
+    if ($queryPlanSQL -notmatch "BEGIN TRANSACTION READ ONLY" -or $queryPlanSQL -match "(?im)^\s*(INSERT|UPDATE|DELETE|TRUNCATE)\s") {
+        throw "PostgreSQL analysis workload must remain read-only"
     }
 
     foreach ($service in $services) {

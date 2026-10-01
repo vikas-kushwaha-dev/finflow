@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -67,6 +68,25 @@ func (m *Metrics) RecordDeadLetter(eventType string, err error) {
 
 func (m *Metrics) Handler() http.Handler {
 	return promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{EnableOpenMetrics: true})
+}
+
+func (m *Metrics) RegisterDBPool(pool *pgxpool.Pool) {
+	states := map[string]func() float64{
+		"acquired": func() float64 { return float64(pool.Stat().AcquiredConns()) },
+		"idle":     func() float64 { return float64(pool.Stat().IdleConns()) },
+		"total":    func() float64 { return float64(pool.Stat().TotalConns()) },
+		"max":      func() float64 { return float64(pool.Stat().MaxConns()) },
+	}
+	for state, value := range states {
+		m.registry.MustRegister(prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{
+				Name:        "finflow_db_pool_connections",
+				Help:        "PostgreSQL connection pool size by state.",
+				ConstLabels: prometheus.Labels{"state": state},
+			},
+			value,
+		))
+	}
 }
 
 func (m *Metrics) RecordKafkaConsume(eventType string, topic string, partition int, lag int64, duration time.Duration, err error) {

@@ -100,3 +100,24 @@ docker compose --profile operations run --rm retention
 ```
 
 See `infrastructure/postgres/README.md` for recovery objectives, PITR requirements, restore procedures, and the complete retention policy.
+
+## Performance tests
+
+Run the payment API workload with local k6 or the pinned Docker fallback:
+
+```powershell
+.\scripts\load-test.ps1 `
+  -Scenario payment-api `
+  -VirtualUsers 10 `
+  -Duration 5m
+```
+
+Use `-Scenario event-throughput` to measure payment-to-ledger propagation. Remote targets are rejected unless `-AllowRemoteTarget` is supplied deliberately. Summaries are written under ignored `dist/performance/`.
+
+Capture read-only PostgreSQL execution plans with:
+
+```powershell
+.\scripts\analyze-postgres.ps1 -DatabaseUrl $env:DATABASE_URL
+```
+
+See `infrastructure/performance/README.md` for workload profiles, SLOs, stop conditions, capacity assumptions, and scaling guidance.

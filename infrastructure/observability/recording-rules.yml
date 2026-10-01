@@ -1,0 +1,12 @@
+groups:
+  - name: finflow-sli
+    interval: 30s
+    rules:
+      - record: finflow:http_request_duration_seconds:p95_5m
+        expr: histogram_quantile(0.95, sum by (job, route, le) (rate(finflow_http_request_duration_seconds_bucket[5m])))
+      - record: finflow:db_operation_duration_seconds:p95_5m
+        expr: histogram_quantile(0.95, sum by (job, operation, le) (rate(finflow_db_operation_duration_seconds_bucket[5m])))
+      - record: finflow:http_server_error:ratio_5m
+        expr: sum by (job) (rate(finflow_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum by (job) (rate(finflow_http_requests_total[5m])), 0.001)
+      - record: finflow:db_pool_utilization:ratio
+        expr: max by (job) (finflow_db_pool_connections{state="acquired"}) / clamp_min(max by (job) (finflow_db_pool_connections{state="max"}), 1)

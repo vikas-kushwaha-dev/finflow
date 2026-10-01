@@ -4,6 +4,7 @@ global:
 
 rule_files:
   - alerts.yml
+  - recording-rules.yml
 
 scrape_configs:
   - job_name: finflow-gateway

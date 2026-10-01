@@ -9,12 +9,12 @@ groups:
         annotations:
           summary: "FinFlow target {{ $labels.job }} is unavailable"
       - alert: FinFlowHighHTTPErrorRate
-        expr: sum by (job) (rate(finflow_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum by (job) (rate(finflow_http_requests_total[5m])), 0.001) > 0.05
+        expr: sum by (job) (rate(finflow_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum by (job) (rate(finflow_http_requests_total[5m])), 0.001) > 0.01
         for: 10m
         labels:
           severity: warning
         annotations:
-          summary: "HTTP 5xx rate exceeds 5% for {{ $labels.job }}"
+          summary: "HTTP 5xx rate exceeds 1% for {{ $labels.job }}"
       - alert: FinFlowKafkaPublishFailures
         expr: sum(increase(finflow_kafka_messages_published_total{result="error"}[10m])) > 0
         for: 5m
@@ -50,3 +50,31 @@ groups:
           severity: warning
         annotations:
           summary: "Database errors are elevated for {{ $labels.job }}"
+      - alert: FinFlowHTTPP95LatencyHigh
+        expr: finflow:http_request_duration_seconds:p95_5m > 0.3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP p95 latency exceeds 300 ms for {{ $labels.job }}"
+      - alert: FinFlowDatabaseP95LatencyHigh
+        expr: finflow:db_operation_duration_seconds:p95_5m > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database p95 latency exceeds 100 ms for {{ $labels.job }}"
+      - alert: FinFlowDatabasePoolSaturation
+        expr: finflow:db_pool_utilization:ratio > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database pool utilization exceeds 80% for {{ $labels.job }}"
+      - alert: FinFlowHTTPErrorBudgetBurn
+        expr: finflow:http_server_error:ratio_5m > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HTTP 5xx ratio exceeds 5% for {{ $labels.job }}"

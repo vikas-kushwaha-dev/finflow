@@ -47,6 +47,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+	metrics.RegisterDBPool(pool)
 
 	ledgerRepository := repository.NewPostgresLedgerRepository(pool)
 	ledgerService := service.NewLedgerService(ledgerRepository)

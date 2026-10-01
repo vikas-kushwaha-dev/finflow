@@ -14,6 +14,7 @@ Use these panels as the minimum payment-flow dashboard:
 | HTTP 5xx ratio | `sum by (job) (rate(finflow_http_requests_total{status=~"5.."}[5m])) / sum by (job) (rate(finflow_http_requests_total[5m]))` |
 | HTTP p95 latency | `histogram_quantile(0.95, sum by (job, le) (rate(finflow_http_request_duration_seconds_bucket[5m])))` |
 | Database p95 latency | `histogram_quantile(0.95, sum by (job, operation, le) (rate(finflow_db_operation_duration_seconds_bucket[5m])))` |
+| Database pool utilization | `max by (job) (finflow_db_pool_connections{state="acquired"}) / max by (job) (finflow_db_pool_connections{state="max"})` |
 | Kafka publish failures | `sum by (event_type) (rate(finflow_kafka_messages_published_total{result="error"}[5m]))` |
 | Kafka consume failures | `sum by (event_type) (rate(finflow_kafka_messages_consumed_total{result="error"}[5m]))` |
 | Consumer lag | `max by (topic, partition) (finflow_kafka_consumer_lag_messages)` |
@@ -25,6 +26,8 @@ Use these panels as the minimum payment-flow dashboard:
 Set `OTEL_EXPORTER_OTLP_ENDPOINT` to an OTLP/HTTP collector endpoint, for example `http://otel-collector:4318`. When it is unset, trace export is disabled while W3C propagation remains active. HTTP context travels through the gateway and internal APIs; `traceparent` and `tracestate` are persisted in the transactional outbox, injected into Kafka headers, and continued by the ledger consumer. Baggage is propagated over synchronous HTTP but is deliberately not persisted.
 
 Do not put payment IDs, idempotency keys, customer data, or raw SQL in metric labels. Use traces and structured logs for request-level investigation.
+
+`recording-rules.yml` materializes the HTTP p95, database p95, HTTP 5xx ratio, and database pool utilization indicators used by `alerts.yml`. The initial objectives and benchmark process are documented in `infrastructure/performance/README.md`; tune thresholds only after retaining comparable evidence from a production-like environment.
 
 ## First-response guide
 
