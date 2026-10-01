@@ -2,7 +2,7 @@
 
 FinFlow is a fintech/payments learning project built incrementally with production-style boundaries.
 
-The project now includes payment, ledger, gateway, event delivery, deployment, release, transport security, observability, failure recovery, database recovery, and capacity engineering. Each layer was added only after the preceding service behavior was working and tested.
+The project now includes payment, ledger, gateway, event delivery, deployment, release, transport security, observability, failure recovery, database recovery, capacity engineering, and controlled resilience testing. Each layer was added only after the preceding service behavior was working and tested.
 
 ## What exists now
 
@@ -391,11 +391,18 @@ Returns ledger entries created for one payment reference:
 - `infrastructure/observability/recording-rules.yml` derives latency, error, and pool-utilization indicators.
 - `infrastructure/performance/README.md` defines initial SLOs, workload profiles, capacity assumptions, stop conditions, and scaling guidance.
 
+## Resilience testing
+
+- `scripts/resilience-test.ps1` runs bounded local PostgreSQL, Kafka, and process-restart experiments.
+- `scripts/kubernetes-resilience-test.ps1` runs explicitly confirmed pod replacement and temporary egress-denial experiments.
+- Every drill captures timestamped evidence under ignored `dist/resilience/` and treats cleanup failure as test failure.
+- `infrastructure/resilience/README.md` defines hypotheses, steady-state invariants, abort conditions, manual recovery, and evidence requirements.
+
 ## Next milestone
 
-Milestone 24 should add controlled resilience testing:
+Milestone 25 should add financial reconciliation operations:
 
-- dependency failure drills for PostgreSQL and Kafka
-- graceful degradation and recovery verification
-- repeatable pod termination and network interruption experiments
-- resilience runbooks with abort conditions and evidence capture
+- scheduled payment-to-ledger reconciliation
+- discrepancy classification and durable audit records
+- operator-safe repair workflows that never mutate ledger history
+- reconciliation metrics, alerts, reports, and runbooks

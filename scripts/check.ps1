@@ -28,7 +28,9 @@ try {
         "scripts/backup-postgres.ps1",
         "scripts/verify-postgres-backup.ps1",
         "scripts/load-test.ps1",
-        "scripts/analyze-postgres.ps1"
+        "scripts/analyze-postgres.ps1",
+        "scripts/resilience-test.ps1",
+        "scripts/kubernetes-resilience-test.ps1"
     )) {
         $tokens = $null
         $parseErrors = $null
@@ -55,6 +57,16 @@ try {
     $queryPlanSQL = Get-Content -LiteralPath (Join-Path $projectRoot "tests/performance/postgres-query-plans.sql") -Raw
     if ($queryPlanSQL -notmatch "BEGIN TRANSACTION READ ONLY" -or $queryPlanSQL -match "(?im)^\s*(INSERT|UPDATE|DELETE|TRUNCATE)\s") {
         throw "PostgreSQL analysis workload must remain read-only"
+    }
+
+    Write-Step "validating resilience drill safeguards"
+    $dockerDrill = Get-Content -LiteralPath (Join-Path $projectRoot "scripts/resilience-test.ps1") -Raw
+    if ($dockerDrill -notmatch "finally" -or $dockerDrill -notmatch "docker unpause" -or $dockerDrill -notmatch "ValidateRange\(1, 30\)" -or $dockerDrill -notmatch "DISRUPT_LOCAL_FINFLOW") {
+        throw "Docker resilience drill is missing bounded cleanup safeguards"
+    }
+    $kubernetesDrill = Get-Content -LiteralPath (Join-Path $projectRoot "scripts/kubernetes-resilience-test.ps1") -Raw
+    if ($kubernetesDrill -notmatch "ConfirmContext" -or $kubernetesDrill -notmatch "DISRUPT_FINFLOW" -or $kubernetesDrill -notmatch "delete networkpolicy") {
+        throw "Kubernetes resilience drill is missing confirmation or cleanup safeguards"
     }
 
     foreach ($service in $services) {

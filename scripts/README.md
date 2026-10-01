@@ -121,3 +121,25 @@ Capture read-only PostgreSQL execution plans with:
 ```
 
 See `infrastructure/performance/README.md` for workload profiles, SLOs, stop conditions, capacity assumptions, and scaling guidance.
+
+## Resilience drills
+
+Run all bounded local Docker experiments against an already-running stack:
+
+```powershell
+.\scripts\resilience-test.ps1 `
+  -ConfirmDisruption DISRUPT_LOCAL_FINFLOW `
+  -Scenario all
+```
+
+Run a confirmed pod replacement in a dedicated Kubernetes environment:
+
+```powershell
+$context = kubectl config current-context
+.\scripts\kubernetes-resilience-test.ps1 `
+  -Scenario payment-pod `
+  -ConfirmContext $context `
+  -ConfirmDisruption DISRUPT_FINFLOW
+```
+
+Evidence is written to ignored `dist/resilience/`. See `infrastructure/resilience/README.md` for hypotheses, safeguards, network-policy requirements, abort conditions, and manual recovery.
